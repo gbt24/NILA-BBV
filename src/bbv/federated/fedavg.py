@@ -12,7 +12,11 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
-from bbv.allocation import allocate_watermark_budget, estimate_adaptability
+from bbv.allocation import (
+    allocate_watermark_budget,
+    build_client_stats_from_histogram,
+    estimate_adaptability,
+)
 from bbv.federated.evaluate import evaluate_accuracy
 from bbv.models import build_model
 from bbv.utils.io import write_json
@@ -236,8 +240,16 @@ def train_federated(
             selected_histograms = [
                 _build_label_histogram(client.labels) for client in selected_clients
             ]
+            selected_stats = [
+                build_client_stats_from_histogram(
+                    histogram=histogram,
+                    main_wm_alignment=0.0,
+                    privacy_penalty=0.1,
+                )
+                for histogram in selected_histograms
+            ]
             adaptability_scores = estimate_adaptability(
-                client_label_histograms=selected_histograms
+                stats=selected_stats
             )
             allocation_budget_clients = max(
                 1, int(round(len(selected_clients) * allocation_budget_ratio))
@@ -248,7 +260,15 @@ def train_federated(
                 base_loss_weight=allocation_base_loss_weight,
             )
             assignment_for_round = {
-                selected_ids[local_id]: assignment
+                selected_ids[local_id]: {
+                    **assignment,
+                    "stats": {
+                        "class_coverage": selected_stats[local_id].class_coverage,
+                        "skew_ratio": selected_stats[local_id].skew_ratio,
+                        "main_wm_alignment": selected_stats[local_id].main_wm_alignment,
+                        "privacy_penalty": selected_stats[local_id].privacy_penalty,
+                    },
+                }
                 for local_id, assignment in assignment_local_ids.items()
             }
             round_assignments.append(

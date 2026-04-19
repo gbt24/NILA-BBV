@@ -4,23 +4,45 @@ from __future__ import annotations
 
 from math import exp
 
+from bbv.allocation.features import ClientStats
+
 
 def _sigmoid(value: float) -> float:
     return 1.0 / (1.0 + exp(-value))
 
 
 def estimate_adaptability(
-    *, client_label_histograms: list[dict[str, int]]
+    *,
+    client_label_histograms: list[dict[str, int]] | None = None,
+    stats: list[ClientStats] | None = None,
 ) -> dict[int, float]:
+    if stats is None:
+        if client_label_histograms is None:
+            raise ValueError("client_label_histograms or stats must be provided")
+        stats = []
+        for histogram in client_label_histograms:
+            total = sum(histogram.values())
+            skew_ratio = max(histogram.values()) / total if total > 0 else 1.0
+            stats.append(
+                ClientStats(
+                    class_coverage=len(histogram),
+                    skew_ratio=float(skew_ratio),
+                    main_wm_alignment=0.0,
+                    privacy_penalty=0.1,
+                )
+            )
+
     scores: dict[int, float] = {}
-    for client_id, histogram in enumerate(client_label_histograms):
-        total = sum(histogram.values())
-        if total == 0:
+    for client_id, item in enumerate(stats):
+        if item.class_coverage <= 0:
             scores[client_id] = 0.0
             continue
-        max_ratio = max(histogram.values()) / total
-        class_coverage = len(histogram)
-        raw_score = 1.5 * class_coverage - 4.0 * max_ratio
+        raw_score = (
+            0.8 * item.main_wm_alignment
+            + 0.2 * item.class_coverage
+            - 1.0 * item.skew_ratio
+            - 0.5 * item.privacy_penalty
+        )
         scores[client_id] = _sigmoid(raw_score)
     return scores
 
