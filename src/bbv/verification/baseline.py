@@ -53,7 +53,7 @@ def calibrate_threshold(
     owner_scores: list[float],
     non_owner_scores: list[float],
     target_fpr: float,
-) -> dict[str, float]:
+) -> dict[str, float | list[float]]:
     if not owner_scores or not non_owner_scores:
         raise ValueError("owner_scores and non_owner_scores must not be empty")
     if target_fpr < 0.0 or target_fpr >= 1.0:
@@ -68,6 +68,8 @@ def calibrate_threshold(
         "target_fpr": float(target_fpr),
         "owner_mean": float(sum(owner_scores) / len(owner_scores)),
         "non_owner_mean": float(sum(non_owner_scores) / len(non_owner_scores)),
+        "owner_scores": [float(score) for score in owner_scores],
+        "non_owner_scores": [float(score) for score in non_owner_scores],
     }
 
 
