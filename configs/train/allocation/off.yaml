@@ -1,0 +1,3 @@
+enabled: false
+budget_ratio: 0.3
+base_loss_weight: 0.1
