@@ -1,0 +1,10 @@
+dataset: cifar10
+study: main
+outputs_dir: outputs/runs
+attacks_dir: outputs/attacks
+report_root: outputs
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
