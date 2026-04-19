@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from bbv.evaluation.stats import compute_summary_metrics
+
 
 @dataclass(frozen=True)
 class EvaluationSummary:
@@ -90,38 +92,10 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
                     }
                 )
 
-    total = len(main_rows)
-    accepted = sum(int(bool(row["decision"])) for row in main_rows)
-    threshold_hits = sum(
-        int(_safe_float(row["competitor_max"]) >= _safe_float(row["threshold"]))
-        for row in main_rows
+    metrics = compute_summary_metrics(
+        main_rows=main_rows,
+        robustness_rows=robustness_rows,
     )
-    false_positive_like = sum(
-        int(bool(row["decision"]) and _safe_float(row["owner_score"]) < _safe_float(row["threshold"]))
-        for row in main_rows
-    )
-    false_negative_like = sum(
-        int((not bool(row["decision"])) and _safe_float(row["owner_score"]) >= _safe_float(row["threshold"]))
-        for row in main_rows
-    )
-    false_claim_acceptances = sum(
-        int(bool(row["decision"]) and _safe_float(row["competitor_max"]) >= _safe_float(row["threshold"]))
-        for row in main_rows
-    )
-
-    denominator = total if total > 0 else 1
-    metrics = {
-        "acceptance_rate": accepted / denominator,
-        "ambiguity_rate": threshold_hits / denominator,
-        "fpr": false_positive_like / denominator,
-        "fnr": false_negative_like / denominator,
-        "false_claim_acceptance_rate": false_claim_acceptances / denominator,
-        "robustness_acceptance_rate": (
-            sum(int(bool(row["decision"])) for row in robustness_rows) / len(robustness_rows)
-            if robustness_rows
-            else 0.0
-        ),
-    }
 
     return EvaluationSummary(
         main_rows=main_rows,
