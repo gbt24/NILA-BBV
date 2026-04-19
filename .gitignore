@@ -1,5 +1,6 @@
 *.log
 outputs/
+.worktrees/
 *.egg-info/
 __pycache__/
 *.pyc
