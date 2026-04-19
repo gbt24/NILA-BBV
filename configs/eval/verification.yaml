@@ -1,0 +1,13 @@
+defaults:
+  - dataset: cifar10
+  - owner: owner0
+  - verification: margin
+  - _self_
+
+seed: 0
+output_root: outputs/runs
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

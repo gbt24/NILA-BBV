@@ -1,0 +1,6 @@
+name: margin
+decision_threshold: 0.5
+margin: 0.05
+competitor_owner_ids:
+  - owner1
+  - owner2
