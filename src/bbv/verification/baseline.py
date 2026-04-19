@@ -8,7 +8,7 @@ import torch
 
 from bbv.models import build_model
 from bbv.utils.io import write_json
-from bbv.watermarking import load_owner_artifacts
+from bbv.watermarking import generate_codebook, load_owner_artifacts
 
 
 def _load_model_from_checkpoint(checkpoint_path: Path) -> torch.nn.Module:
@@ -41,10 +41,11 @@ def compute_owner_score(
     negative_asr: float,
     negative_weight: float,
 ) -> float:
-    matched = sum(int(a == b) for a, b in zip(expected_codebook, recovered_codebook))
-    positive_rate = matched / len(expected_codebook)
-    score = positive_rate - negative_weight * negative_asr
-    return max(0.0, min(1.0, score))
+    hamming_distance = sum(
+        int(a != b) for a, b in zip(expected_codebook, recovered_codebook)
+    )
+    score = 1.0 - (hamming_distance / len(expected_codebook)) - negative_weight * negative_asr
+    return float(score)
 
 
 def calibrate_threshold(
@@ -92,6 +93,7 @@ def verify_owner(
     strongest_competitor = max(competitor_scores.values()) if competitor_scores else 0.0
     margin_value = owner_score - strongest_competitor
     accepted = owner_score >= threshold and margin_value >= margin
+    ambiguity_flag = any(score >= threshold for score in competitor_scores.values())
     summary: dict[str, object] = {
         "owner_id": owner_id,
         "code_length": len(expected_codebook),
@@ -101,6 +103,7 @@ def verify_owner(
         "margin": margin,
         "margin_value": margin_value,
         "decision": accepted,
+        "ambiguity_flag": ambiguity_flag,
         "threshold": threshold,
         "recovered_codebook": recovered_codebook,
     }
@@ -145,12 +148,19 @@ def run_verification_from_checkpoint(
     else:
         negative_asr = 0.0
 
-    owner_offset = sum(ord(ch) for ch in str(artifacts["owner_id"]))
     competitor_scores: dict[str, float] = {}
-    for index, competitor_id in enumerate(competitor_owner_ids):
-        competitor_offset = sum(ord(ch) for ch in competitor_id)
-        pseudo_score = ((seed + owner_offset + competitor_offset + index) % 100) / 200.0
-        competitor_scores[competitor_id] = float(pseudo_score)
+    for competitor_id in competitor_owner_ids:
+        competitor_codebook = generate_codebook(
+            owner_id=competitor_id,
+            code_length=len(expected),
+            seed=seed,
+        )
+        competitor_scores[competitor_id] = compute_owner_score(
+            expected_codebook=competitor_codebook,
+            recovered_codebook=recovered,
+            negative_asr=negative_asr,
+            negative_weight=0.2,
+        )
 
     return verify_owner(
         owner_id=str(artifacts["owner_id"]),
