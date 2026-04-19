@@ -1,0 +1,10 @@
+attack: finetune
+dataset: cifar10
+checkpoint: outputs/runs/latest/checkpoint.pt
+seed: 0
+output_root: outputs/attacks
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
