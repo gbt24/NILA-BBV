@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -34,6 +35,7 @@ def test_watermark_artifacts_and_verification_pipeline(tmp_path: Path) -> None:
         owner_id="owner0",
         codebook=codebook,
         queries=queries,
+        wm_train_config={"task_weight": 1.0, "wm_weight": 0.2},
     )
 
     summary = verify_owner_from_checkpoint(
@@ -50,3 +52,8 @@ def test_watermark_artifacts_and_verification_pipeline(tmp_path: Path) -> None:
 
     payload = json.loads((train_result.run_dir / "verification_summary.json").read_text())
     assert payload["owner_id"] == "owner0"
+
+    artifacts_payload = json.loads(artifacts_path.read_text(encoding="utf-8"))
+    expected_hash = hashlib.sha256("".join(str(bit) for bit in codebook).encode("utf-8")).hexdigest()
+    assert artifacts_payload["codebook_hash"] == expected_hash
+    assert artifacts_payload["wm_train_config"]["wm_weight"] == 0.2

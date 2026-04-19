@@ -7,6 +7,7 @@ from bbv.watermarking.baseline import (
     load_owner_artifacts,
     save_owner_artifacts,
 )
+from bbv.watermarking.losses import compute_watermark_loss
 
 __all__ = [
     "build_negative_queries",
@@ -14,4 +15,5 @@ __all__ = [
     "generate_codebook",
     "load_owner_artifacts",
     "save_owner_artifacts",
+    "compute_watermark_loss",
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -44,16 +45,24 @@ def save_owner_artifacts(
     codebook: list[int],
     queries: list[torch.Tensor],
     negative_queries: list[torch.Tensor] | None = None,
+    wm_train_config: dict[str, float] | None = None,
 ) -> None:
     if len(codebook) != len(queries):
         raise ValueError("codebook and queries must have the same length")
     if negative_queries is None:
         negative_queries = []
+    if wm_train_config is None:
+        wm_train_config = {}
+    codebook_hash = hashlib.sha256(
+        "".join(str(bit) for bit in codebook).encode("utf-8")
+    ).hexdigest()
     payload = {
         "owner_id": owner_id,
         "codebook": codebook,
+        "codebook_hash": codebook_hash,
         "positive_queries": [query.tolist() for query in queries],
         "negative_queries": [query.tolist() for query in negative_queries],
+        "wm_train_config": wm_train_config,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

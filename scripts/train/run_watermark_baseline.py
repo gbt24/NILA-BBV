@@ -56,6 +56,7 @@ def main(cfg: DictConfig) -> None:
         codebook=codebook,
         queries=queries,
         negative_queries=negative_queries,
+        wm_train_config={"task_weight": 1.0, "wm_weight": 0.2},
     )
 
     verification_path = train_result.run_dir / "verification_summary.json"
