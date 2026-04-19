@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bbv.evaluation import EvaluationSummary
+from bbv.reporting.templates import build_tradeoff_svg
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,11 @@ def _write_summary(path: Path, dataset: str, study: str, summary: EvaluationSumm
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _write_tradeoff_figure(path: Path, rows: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(build_tradeoff_svg(rows), encoding="utf-8")
+
+
 def export_report_bundle(
     *, dataset: str, study: str, summary: EvaluationSummary, output_root: Path
 ) -> ReportBundle:
@@ -101,12 +107,14 @@ def export_report_bundle(
     ablation_table = tables_dir / f"{prefix}-ablation-results.csv"
     robustness_table = tables_dir / f"{prefix}-robustness-results.csv"
     main_figure = figures_dir / f"{prefix}-main-figure.svg"
+    tradeoff_figure = figures_dir / f"{prefix}-tradeoff-figure.svg"
     summary_report = summaries_dir / f"{prefix}-summary.md"
 
     _write_csv(main_table, summary.main_rows)
     _write_csv(ablation_table, summary.ablation_rows)
     _write_csv(robustness_table, summary.robustness_rows)
     _write_main_figure(main_figure, summary.metrics)
+    _write_tradeoff_figure(tradeoff_figure, summary.main_rows)
     _write_summary(summary_report, dataset, study, summary)
 
     return ReportBundle(
