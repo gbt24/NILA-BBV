@@ -1,0 +1,21 @@
+defaults:
+  - _self_
+
+seed: 7
+output_root: outputs/runs
+
+federated:
+  num_clients: 3
+  samples_per_client: 8
+  local_epochs: 1
+  learning_rate: 0.1
+
+model:
+  input_dim: 4
+  hidden_dim: 16
+  num_classes: 2
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
