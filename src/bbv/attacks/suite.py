@@ -9,6 +9,10 @@ from uuid import uuid4
 
 import torch
 
+from bbv.attacks.distillation import run_distillation_attack
+from bbv.attacks.finetune import run_finetune_attack
+from bbv.attacks.pruning import run_pruning_attack
+from bbv.attacks.quantization import run_quantization_attack
 from bbv.utils.io import write_json
 
 
@@ -19,66 +23,32 @@ class AttackResult:
     attack_log: Path
 
 
-def _clone_state_dict(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    return {key: value.clone() for key, value in state_dict.items()}
-
-
-def _apply_finetune_noise(
-    state_dict: dict[str, torch.Tensor], generator: torch.Generator
-) -> dict[str, torch.Tensor]:
-    attacked = _clone_state_dict(state_dict)
-    for key, value in attacked.items():
-        if torch.is_floating_point(value):
-            attacked[key] = value + 0.01 * torch.randn_like(value, generator=generator)
-    return attacked
-
-
-def _apply_pruning(state_dict: dict[str, torch.Tensor], ratio: float = 0.2) -> dict[str, torch.Tensor]:
-    attacked = _clone_state_dict(state_dict)
-    for key, value in attacked.items():
-        if not torch.is_floating_point(value):
-            continue
-        flat = value.abs().reshape(-1)
-        if flat.numel() == 0:
-            continue
-        threshold_index = min(int(flat.numel() * ratio), flat.numel() - 1)
-        threshold = torch.kthvalue(flat, threshold_index + 1).values.item()
-        attacked[key] = torch.where(value.abs() <= threshold, torch.zeros_like(value), value)
-    return attacked
-
-
-def _apply_quantization(state_dict: dict[str, torch.Tensor], levels: int = 128) -> dict[str, torch.Tensor]:
-    attacked = _clone_state_dict(state_dict)
-    for key, value in attacked.items():
-        if not torch.is_floating_point(value):
-            continue
-        scale = float(value.abs().max().item())
-        if scale == 0.0:
-            continue
-        step = scale / float(levels)
-        attacked[key] = torch.round(value / step) * step
-    return attacked
-
-
-def _apply_distillation(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    attacked = _clone_state_dict(state_dict)
-    for key, value in attacked.items():
-        if torch.is_floating_point(value):
-            attacked[key] = value * 0.9
-    return attacked
-
-
 def _attack_state_dict(
     *, attack_name: str, state_dict: dict[str, torch.Tensor], generator: torch.Generator
-) -> dict[str, torch.Tensor]:
+) -> tuple[dict[str, torch.Tensor], dict[str, float]]:
     if attack_name == "finetune":
-        return _apply_finetune_noise(state_dict=state_dict, generator=generator)
+        config = {"noise_scale": 0.01}
+        return (
+            run_finetune_attack(
+                state_dict=state_dict, generator=generator, noise_scale=config["noise_scale"]
+            ),
+            config,
+        )
     if attack_name == "pruning":
-        return _apply_pruning(state_dict=state_dict)
+        config = {"ratio": 0.2}
+        return run_pruning_attack(state_dict=state_dict, ratio=config["ratio"]), config
     if attack_name == "quantization":
-        return _apply_quantization(state_dict=state_dict)
+        config = {"levels": 128.0}
+        return (
+            run_quantization_attack(state_dict=state_dict, levels=int(config["levels"])),
+            config,
+        )
     if attack_name == "distillation":
-        return _apply_distillation(state_dict=state_dict)
+        config = {"retention": 0.9}
+        return (
+            run_distillation_attack(state_dict=state_dict, retention=config["retention"]),
+            config,
+        )
     raise ValueError(f"unsupported attack: {attack_name}")
 
 
@@ -95,7 +65,7 @@ def run_attack(
         raise ValueError("checkpoint must contain model_state")
 
     generator = torch.Generator().manual_seed(seed)
-    attacked_state = _attack_state_dict(
+    attacked_state, attack_config = _attack_state_dict(
         attack_name=attack_name,
         state_dict=checkpoint["model_state"],
         generator=generator,
@@ -114,6 +84,7 @@ def run_attack(
             "attack": attack_name,
             "dataset": dataset_name,
             "seed": seed,
+            "attack_config": attack_config,
             "source_checkpoint": str(checkpoint_path),
             "attacked_checkpoint": str(attacked_checkpoint),
         },
