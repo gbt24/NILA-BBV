@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 from bbv.allocation import allocate_watermark_budget, estimate_adaptability
+from bbv.federated.evaluate import evaluate_accuracy
 from bbv.models import build_model
 from bbv.utils.io import write_json
 
@@ -35,6 +36,7 @@ class FedAvgResult:
     metrics_path: Path
     metadata_path: Path
     checkpoint_path: Path
+    best_checkpoint_path: Path
     allocation_path: Path | None
 
 
@@ -198,7 +200,13 @@ def train_federated(
     metrics_path = run_dir / "metrics.json"
     metadata_path = run_dir / "run_metadata.json"
     checkpoint_path = run_dir / "checkpoint.pt"
+    best_checkpoint_path = run_dir / "best_checkpoint.pt"
     allocation_path = run_dir / "allocation_assignments.json"
+
+    channels, height, width = build_model_input_shape(dataset_name)
+    val_generator = torch.Generator().manual_seed(seed + 2026)
+    val_features = torch.randn(64, channels, height, width, generator=val_generator)
+    val_labels = torch.randint(0, num_classes, (64,), generator=val_generator)
 
     clients = [
         build_client(
@@ -216,6 +224,7 @@ def train_federated(
     round_metrics: list[dict[str, float | int]] = []
     round_assignments: list[dict[str, object]] = []
     rng = torch.Generator().manual_seed(seed)
+    best_val_accuracy = -1.0
 
     for round_id in range(1, rounds + 1):
         permutation = torch.randperm(num_clients, generator=rng).tolist()
@@ -264,11 +273,18 @@ def train_federated(
             local_losses.append(loss_value)
 
         server.model.load_state_dict(_average_state_dicts(local_states))
+        val_accuracy = evaluate_accuracy(
+            model=server.model, features=val_features, labels=val_labels
+        )
+        if val_accuracy > best_val_accuracy:
+            best_val_accuracy = val_accuracy
+            torch.save({"model_state": server.model.state_dict()}, best_checkpoint_path)
         round_metrics.append(
             {
                 "round": round_id,
                 "selected_clients": len(selected_clients),
                 "mean_client_loss": sum(local_losses) / len(local_losses),
+                "val_accuracy": val_accuracy,
                 "allocation_enabled": allocation_enabled,
                 "allocated_clients": sum(
                     int(item["enabled"]) for item in assignment_for_round.values()
@@ -326,5 +342,6 @@ def train_federated(
         metrics_path=metrics_path,
         metadata_path=metadata_path,
         checkpoint_path=checkpoint_path,
+        best_checkpoint_path=best_checkpoint_path,
         allocation_path=allocation_path if allocation_enabled else None,
     )
