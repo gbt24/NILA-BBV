@@ -4,8 +4,10 @@ import torch
 
 
 def run_pruning_attack(
-    *, state_dict: dict[str, torch.Tensor], ratio: float
-) -> dict[str, torch.Tensor]:
+    *, state_dict: dict[str, torch.Tensor], seed: int, ratio: float
+) -> tuple[dict[str, torch.Tensor], dict[str, float | str]]:
+    del seed
+
     attacked = {key: value.clone() for key, value in state_dict.items()}
     for key, value in attacked.items():
         if not torch.is_floating_point(value):
@@ -16,4 +18,4 @@ def run_pruning_attack(
         threshold_index = min(int(flat.numel() * ratio), flat.numel() - 1)
         threshold = torch.kthvalue(flat, threshold_index + 1).values.item()
         attacked[key] = torch.where(value.abs() <= threshold, torch.zeros_like(value), value)
-    return attacked
+    return attacked, {"attack_name": "pruning", "ratio": ratio}

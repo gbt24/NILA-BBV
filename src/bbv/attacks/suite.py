@@ -10,6 +10,7 @@ from uuid import uuid4
 import torch
 
 from bbv.attacks.distillation import run_distillation_attack
+from bbv.attacks.extraction import run_extraction_attack
 from bbv.attacks.finetune import run_finetune_attack
 from bbv.attacks.pruning import run_pruning_attack
 from bbv.attacks.quantization import run_quantization_attack
@@ -24,31 +25,18 @@ class AttackResult:
 
 
 def _attack_state_dict(
-    *, attack_name: str, state_dict: dict[str, torch.Tensor], generator: torch.Generator
-) -> tuple[dict[str, torch.Tensor], dict[str, float]]:
+    *, attack_name: str, state_dict: dict[str, torch.Tensor], seed: int
+) -> tuple[dict[str, torch.Tensor], dict[str, float | int | str]]:
     if attack_name == "finetune":
-        config = {"noise_scale": 0.01}
-        return (
-            run_finetune_attack(
-                state_dict=state_dict, generator=generator, noise_scale=config["noise_scale"]
-            ),
-            config,
-        )
+        return run_finetune_attack(state_dict=state_dict, seed=seed, noise_scale=0.01)
     if attack_name == "pruning":
-        config = {"ratio": 0.2}
-        return run_pruning_attack(state_dict=state_dict, ratio=config["ratio"]), config
+        return run_pruning_attack(state_dict=state_dict, seed=seed, ratio=0.2)
     if attack_name == "quantization":
-        config = {"levels": 128.0}
-        return (
-            run_quantization_attack(state_dict=state_dict, levels=int(config["levels"])),
-            config,
-        )
+        return run_quantization_attack(state_dict=state_dict, seed=seed, levels=128)
     if attack_name == "distillation":
-        config = {"retention": 0.9}
-        return (
-            run_distillation_attack(state_dict=state_dict, retention=config["retention"]),
-            config,
-        )
+        return run_distillation_attack(state_dict=state_dict, seed=seed, retention=0.9)
+    if attack_name == "extraction":
+        return run_extraction_attack(state_dict=state_dict, seed=seed, temperature=1.0, student_mix=0.85)
     raise ValueError(f"unsupported attack: {attack_name}")
 
 
@@ -64,11 +52,10 @@ def run_attack(
     if "model_state" not in checkpoint:
         raise ValueError("checkpoint must contain model_state")
 
-    generator = torch.Generator().manual_seed(seed)
     attacked_state, attack_config = _attack_state_dict(
         attack_name=attack_name,
         state_dict=checkpoint["model_state"],
-        generator=generator,
+        seed=seed,
     )
 
     run_id = f"{attack_name}-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:8]}"
@@ -77,16 +64,18 @@ def run_attack(
     attacked_checkpoint = output_dir / "attacked_checkpoint.pt"
     attack_log = output_dir / "attack_log.json"
 
-    torch.save({"model_state": attacked_state}, attacked_checkpoint)
+    attacked_checkpoint_payload = dict(checkpoint)
+    attacked_checkpoint_payload["model_state"] = attacked_state
+    torch.save(attacked_checkpoint_payload, attacked_checkpoint)
     write_json(
         attack_log,
         {
             "attack": attack_name,
             "dataset": dataset_name,
-            "seed": seed,
             "attack_config": attack_config,
             "source_checkpoint": str(checkpoint_path),
             "attacked_checkpoint": str(attacked_checkpoint),
+            "seed": seed,
         },
     )
     return AttackResult(

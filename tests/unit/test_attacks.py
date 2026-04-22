@@ -25,7 +25,7 @@ def test_run_attack_supports_required_attack_types(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "checkpoint.pt"
     torch.save({"model_state": {"linear.weight": torch.randn(2, 2)}}, checkpoint_path)
 
-    for attack_name in ["finetune", "pruning", "quantization", "distillation"]:
+    for attack_name in ["finetune", "pruning", "quantization", "distillation", "extraction"]:
         result = run_attack(
             attack_name=attack_name,
             checkpoint_path=checkpoint_path,

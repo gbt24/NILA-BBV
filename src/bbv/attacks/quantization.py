@@ -4,8 +4,10 @@ import torch
 
 
 def run_quantization_attack(
-    *, state_dict: dict[str, torch.Tensor], levels: int
-) -> dict[str, torch.Tensor]:
+    *, state_dict: dict[str, torch.Tensor], seed: int, levels: int
+) -> tuple[dict[str, torch.Tensor], dict[str, int | str]]:
+    del seed
+
     attacked = {key: value.clone() for key, value in state_dict.items()}
     for key, value in attacked.items():
         if not torch.is_floating_point(value):
@@ -15,4 +17,4 @@ def run_quantization_attack(
             continue
         step = scale / float(levels)
         attacked[key] = torch.round(value / step) * step
-    return attacked
+    return attacked, {"attack_name": "quantization", "levels": levels}
