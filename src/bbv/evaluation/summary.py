@@ -44,6 +44,7 @@ class EvaluationSummary:
     robustness_rows: list[dict[str, object]]
     metrics: dict[str, object]
     privacy_leakage_auc: float = 0.5
+    hypothesis_verdicts: dict[str, dict[str, str]] | None = None
 
 
 def _load_json(path: Path) -> dict[str, object]:
@@ -59,6 +60,51 @@ def _safe_float(value: object, default: float = 0.0) -> float:
 
 def _select_columns(row: dict[str, object], columns: tuple[str, ...]) -> dict[str, object]:
     return {column: row.get(column, "") for column in columns}
+
+
+def _build_hypothesis_verdicts(metrics: dict[str, object]) -> dict[str, dict[str, str]]:
+    acceptance_rate = _safe_float(metrics.get("acceptance_rate"))
+    ambiguity_rate = _safe_float(metrics.get("ambiguity_rate"), 1.0)
+    fpr = _safe_float(metrics.get("fpr"), 1.0)
+    robustness_acceptance_rate = _safe_float(metrics.get("robustness_acceptance_rate"))
+    privacy_leakage_auc = _safe_float(metrics.get("privacy_leakage_auc"), 0.5)
+
+    def verdict(condition_supported: bool, condition_mixed: bool, evidence: str) -> dict[str, str]:
+        if condition_supported:
+            label = "supported"
+        elif condition_mixed:
+            label = "mixed"
+        else:
+            label = "unsupported"
+        return {"label": label, "evidence": evidence}
+
+    return {
+        "H1": verdict(
+            acceptance_rate >= 0.8,
+            acceptance_rate >= 0.5,
+            f"acceptance_rate={acceptance_rate:.3f}",
+        ),
+        "H2": verdict(
+            ambiguity_rate <= 0.1 and fpr <= 0.1,
+            ambiguity_rate <= 0.25 and fpr <= 0.25,
+            f"ambiguity_rate={ambiguity_rate:.3f}, fpr={fpr:.3f}",
+        ),
+        "H3": verdict(
+            acceptance_rate >= 0.8,
+            acceptance_rate >= 0.5,
+            f"acceptance_rate={acceptance_rate:.3f}",
+        ),
+        "H4": verdict(
+            robustness_acceptance_rate >= 0.7,
+            robustness_acceptance_rate >= 0.4,
+            f"robustness_acceptance_rate={robustness_acceptance_rate:.3f}",
+        ),
+        "H5": verdict(
+            privacy_leakage_auc <= 0.6,
+            privacy_leakage_auc <= 0.75,
+            f"privacy_leakage_auc={privacy_leakage_auc:.3f}",
+        ),
+    }
 
 
 def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> EvaluationSummary:
@@ -168,6 +214,7 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
         metrics["privacy_leakage_auc"] = privacy_leakage_auc
     else:
         metrics["privacy_leakage_auc"] = privacy_leakage_auc
+    hypothesis_verdicts = _build_hypothesis_verdicts(metrics)
 
     return EvaluationSummary(
         main_rows=main_rows,
@@ -175,4 +222,5 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
         robustness_rows=robustness_rows,
         metrics=metrics,
         privacy_leakage_auc=privacy_leakage_auc,
+        hypothesis_verdicts=hypothesis_verdicts,
     )

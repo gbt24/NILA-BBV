@@ -89,10 +89,18 @@ def _write_summary(path: Path, dataset: str, study: str, summary: EvaluationSumm
         "",
         f"privacy_leakage_auc: {summary.privacy_leakage_auc:.4f}",
         "",
+        "## Hypothesis Verdicts",
+    ]
+    for hypothesis, verdict in (summary.hypothesis_verdicts or {}).items():
+        lines.append(f"- {hypothesis}: {verdict.get('label', 'unsupported')} ({verdict.get('evidence', '')})")
+    lines.extend(
+        [
+            "",
         f"main_rows: {len(summary.main_rows)}",
         f"ablation_rows: {len(summary.ablation_rows)}",
         f"robustness_rows: {len(summary.robustness_rows)}",
-    ]
+        ]
+    )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

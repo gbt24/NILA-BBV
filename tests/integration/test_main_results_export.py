@@ -53,3 +53,33 @@ def test_evaluation_and_reporting_export_three_tables(tmp_path: Path) -> None:
     assert "fnr" in summary_text
     assert "false_claim_acceptance_rate" in summary_text
     assert "robustness_acceptance_rate" in summary_text
+
+
+def test_summary_contains_hypothesis_verdicts(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "run-a"
+    _write_json(
+        run_dir / "verification_margin_summary.json",
+        {
+            "owner_id": "owner0",
+            "owner_score": 0.81,
+            "decision": True,
+            "threshold": 0.5,
+            "margin_value": 0.31,
+            "competitor_scores": {"owner1": 0.2},
+            "ambiguity_flag": False,
+            "claim_type": "owner",
+        },
+    )
+    _write_json(run_dir / "run_metadata.json", {"seed": 0})
+
+    attack_dir = tmp_path / "attacks" / "run-atk"
+    _write_json(attack_dir / "attack_log.json", {"attack": "finetune"})
+    _write_json(
+        attack_dir / "verification_after_attack.json",
+        {"owner_score": 0.61, "decision": True},
+    )
+
+    summary = summarize_outputs(results_root=tmp_path / "runs", attacks_root=tmp_path / "attacks")
+
+    assert "H1" in summary.hypothesis_verdicts
+    assert "H5" in summary.hypothesis_verdicts
