@@ -1,1 +1,8 @@
 name: extraction
+student_model_name: mlp
+learning_rate: 0.01
+local_epochs: 1
+batch_size: 8
+query_budget: 32
+temperature: 1.0
+teacher_query_mode: hard-label

@@ -52,9 +52,37 @@ def _attack_state_dict(
     if attack_name == "quantization":
         return run_quantization_attack(state_dict=state_dict, seed=seed, levels=128)
     if attack_name == "distillation":
-        return run_distillation_attack(state_dict=state_dict, seed=seed, retention=0.9)
+        return run_distillation_attack(
+            state_dict=state_dict,
+            model_name=str(checkpoint.get("model_name", "mlp")),
+            num_classes=int(checkpoint.get("num_classes", 10)),
+            input_shape=tuple(checkpoint.get("input_shape", (3, 32, 32))),
+            dataset_name=dataset_name,
+            seed=seed,
+            student_model_name=str(attack_config.get("student_model_name", checkpoint.get("model_name", "mlp"))),
+            learning_rate=float(attack_config.get("learning_rate", 0.01)),
+            local_epochs=int(attack_config.get("local_epochs", 1)),
+            batch_size=int(attack_config.get("batch_size", 8)),
+            max_batches=int(attack_config.get("max_batches", 4)),
+            temperature=float(attack_config.get("temperature", 1.0)),
+            teacher_query_mode=str(attack_config.get("teacher_query_mode", "logits")),
+        )
     if attack_name == "extraction":
-        return run_extraction_attack(state_dict=state_dict, seed=seed, temperature=1.0, student_mix=0.85)
+        return run_extraction_attack(
+            state_dict=state_dict,
+            model_name=str(checkpoint.get("model_name", "mlp")),
+            num_classes=int(checkpoint.get("num_classes", 10)),
+            input_shape=tuple(checkpoint.get("input_shape", (3, 32, 32))),
+            dataset_name=dataset_name,
+            seed=seed,
+            student_model_name=str(attack_config.get("student_model_name", checkpoint.get("model_name", "mlp"))),
+            temperature=float(attack_config.get("temperature", 1.0)),
+            learning_rate=float(attack_config.get("learning_rate", 0.01)),
+            local_epochs=int(attack_config.get("local_epochs", 1)),
+            batch_size=int(attack_config.get("batch_size", 8)),
+            query_budget=int(attack_config.get("query_budget", 32)),
+            teacher_query_mode=str(attack_config.get("teacher_query_mode", "hard-label")),
+        )
     raise ValueError(f"unsupported attack: {attack_name}")
 
 
@@ -87,6 +115,8 @@ def run_attack(
 
     attacked_checkpoint_payload = dict(checkpoint)
     attacked_checkpoint_payload["model_state"] = attacked_state
+    if attack_name in {"distillation", "extraction"} and "student_model_name" in attack_config:
+        attacked_checkpoint_payload["model_name"] = attack_config["student_model_name"]
     torch.save(attacked_checkpoint_payload, attacked_checkpoint)
     write_json(
         attack_log,
