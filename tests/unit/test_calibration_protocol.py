@@ -25,3 +25,15 @@ def test_calibrate_threshold_returns_score_lists() -> None:
 
     assert calibration["owner_scores"] == owner_scores
     assert calibration["non_owner_scores"] == non_owner_scores
+
+
+def test_calibrate_threshold_returns_auc_and_confidence_interval() -> None:
+    calibration = calibrate_threshold(
+        owner_scores=[0.9, 0.88, 0.91],
+        non_owner_scores=[0.2, 0.35, 0.4, 0.1],
+        target_fpr=0.1,
+    )
+
+    assert "auc" in calibration
+    assert "threshold_ci" in calibration
+    assert "roc_points" in calibration

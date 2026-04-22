@@ -41,7 +41,7 @@ class EvaluationSummary:
     main_rows: list[dict[str, object]]
     ablation_rows: list[dict[str, object]]
     robustness_rows: list[dict[str, object]]
-    metrics: dict[str, float]
+    metrics: dict[str, object]
 
 
 def _load_json(path: Path) -> dict[str, object]:
