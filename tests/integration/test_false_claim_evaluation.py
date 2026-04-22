@@ -19,13 +19,30 @@ def test_evaluation_reports_false_claim_acceptance_rate(tmp_path: Path) -> None:
             "decision": True,
             "threshold": 0.5,
             "margin_value": 0.1,
-            "competitor_scores": {"owner1": 0.55},
-            "ambiguity_flag": True,
+            "competitor_scores": {"owner1": 0.4},
+            "ambiguity_flag": False,
+            "claim_type": "owner",
         },
     )
     _write_json(run_dir / "run_metadata.json", {"seed": 0})
 
+    false_claim_run_dir = tmp_path / "runs" / "run1"
+    _write_json(
+        false_claim_run_dir / "verification_margin_summary.json",
+        {
+            "owner_id": "owner0",
+            "owner_score": 0.58,
+            "decision": True,
+            "threshold": 0.5,
+            "margin_value": 0.08,
+            "competitor_scores": {"owner1": 0.56},
+            "ambiguity_flag": True,
+            "claim_type": "false_claim",
+        },
+    )
+    _write_json(false_claim_run_dir / "run_metadata.json", {"seed": 1})
+
     summary = summarize_outputs(results_root=tmp_path / "runs", attacks_root=None)
 
     assert "false_claim_acceptance_rate" in summary.metrics
-    assert summary.metrics["false_claim_acceptance_rate"] >= 0.0
+    assert summary.metrics["false_claim_acceptance_rate"] == 1.0

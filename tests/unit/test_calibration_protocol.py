@@ -11,3 +11,17 @@ def test_calibrate_threshold_respects_target_fpr() -> None:
     assert calibration["target_fpr"] == 0.25
     assert "owner_scores" in calibration
     assert "non_owner_scores" in calibration
+
+
+def test_calibrate_threshold_returns_score_lists() -> None:
+    owner_scores = [0.88, 0.84, 0.90]
+    non_owner_scores = [0.10, 0.22, 0.31, 0.45]
+
+    calibration = calibrate_threshold(
+        owner_scores=owner_scores,
+        non_owner_scores=non_owner_scores,
+        target_fpr=0.25,
+    )
+
+    assert calibration["owner_scores"] == owner_scores
+    assert calibration["non_owner_scores"] == non_owner_scores

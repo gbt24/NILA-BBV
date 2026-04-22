@@ -9,6 +9,33 @@ from pathlib import Path
 from bbv.evaluation.stats import compute_summary_metrics
 
 
+MAIN_RESULT_COLUMNS = (
+    "run_id",
+    "owner_id",
+    "claim_type",
+    "owner_score",
+    "decision",
+    "threshold",
+    "margin_value",
+    "competitor_max",
+    "ambiguity_flag",
+)
+
+ABLATION_RESULT_COLUMNS = (
+    "run_id",
+    "allocation_enabled",
+    "owner_score",
+    "decision",
+)
+
+ROBUSTNESS_RESULT_COLUMNS = (
+    "attack_run",
+    "attack",
+    "owner_score",
+    "decision",
+)
+
+
 @dataclass(frozen=True)
 class EvaluationSummary:
     main_rows: list[dict[str, object]]
@@ -26,6 +53,10 @@ def _safe_float(value: object, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _select_columns(row: dict[str, object], columns: tuple[str, ...]) -> dict[str, object]:
+    return {column: row.get(column, "") for column in columns}
 
 
 def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> EvaluationSummary:
@@ -48,27 +79,35 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
             if isinstance(competitor_scores, dict) and competitor_scores:
                 competitor_max = max(_safe_float(v) for v in competitor_scores.values())
 
-            row = {
+            row = _select_columns(
+                {
                 "run_id": run_dir.name,
                 "owner_id": str(verification.get("owner_id", "unknown")),
+                "claim_type": str(verification.get("claim_type", "owner")),
                 "owner_score": _safe_float(verification.get("owner_score")),
                 "decision": bool(verification.get("decision", False)),
                 "threshold": _safe_float(verification.get("threshold"), 0.5),
                 "margin_value": _safe_float(verification.get("margin_value")),
                 "competitor_max": competitor_max,
-            }
+                "ambiguity_flag": bool(verification.get("ambiguity_flag", False)),
+                },
+                MAIN_RESULT_COLUMNS,
+            )
             main_rows.append(row)
             ablation_rows.append(
-                {
-                    "run_id": run_dir.name,
-                    "allocation_enabled": bool(
-                        (metadata.get("allocation") or {}).get("enabled", False)
-                        if isinstance(metadata.get("allocation"), dict)
-                        else False
-                    ),
-                    "owner_score": row["owner_score"],
-                    "decision": row["decision"],
-                }
+                _select_columns(
+                    {
+                        "run_id": run_dir.name,
+                        "allocation_enabled": bool(
+                            (metadata.get("allocation") or {}).get("enabled", False)
+                            if isinstance(metadata.get("allocation"), dict)
+                            else False
+                        ),
+                        "owner_score": row["owner_score"],
+                        "decision": row["decision"],
+                    },
+                    ABLATION_RESULT_COLUMNS,
+                )
             )
 
     robustness_rows: list[dict[str, object]] = []
@@ -84,12 +123,15 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
                 attack_log = _load_json(attack_log_path)
                 verification = _load_json(verification_path)
                 robustness_rows.append(
-                    {
-                        "attack_run": attack_dir.name,
-                        "attack": str(attack_log.get("attack", "unknown")),
-                        "owner_score": _safe_float(verification.get("owner_score")),
-                        "decision": bool(verification.get("decision", False)),
-                    }
+                    _select_columns(
+                        {
+                            "attack_run": attack_dir.name,
+                            "attack": str(attack_log.get("attack", "unknown")),
+                            "owner_score": _safe_float(verification.get("owner_score")),
+                            "decision": bool(verification.get("decision", False)),
+                        },
+                        ROBUSTNESS_RESULT_COLUMNS,
+                    )
                 )
 
     metrics = compute_summary_metrics(
