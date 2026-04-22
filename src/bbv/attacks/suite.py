@@ -25,10 +25,28 @@ class AttackResult:
 
 
 def _attack_state_dict(
-    *, attack_name: str, state_dict: dict[str, torch.Tensor], seed: int
+    *,
+    attack_name: str,
+    checkpoint: dict[str, object],
+    seed: int,
+    dataset_name: str,
+    attack_config: dict[str, object] | None = None,
 ) -> tuple[dict[str, torch.Tensor], dict[str, float | int | str]]:
+    attack_config = attack_config or {}
+    state_dict = checkpoint["model_state"]
     if attack_name == "finetune":
-        return run_finetune_attack(state_dict=state_dict, seed=seed, noise_scale=0.01)
+        return run_finetune_attack(
+            state_dict=state_dict,
+            model_name=str(checkpoint.get("model_name", "mlp")),
+            num_classes=int(checkpoint.get("num_classes", 10)),
+            input_shape=tuple(checkpoint.get("input_shape", (3, 32, 32))),
+            dataset_name=dataset_name,
+            seed=seed,
+            learning_rate=float(attack_config.get("learning_rate", 0.01)),
+            local_epochs=int(attack_config.get("local_epochs", 1)),
+            batch_size=int(attack_config.get("batch_size", 8)),
+            max_batches=int(attack_config.get("max_batches", 4)),
+        )
     if attack_name == "pruning":
         return run_pruning_attack(state_dict=state_dict, seed=seed, ratio=0.2)
     if attack_name == "quantization":
@@ -47,6 +65,7 @@ def run_attack(
     output_root: Path,
     seed: int,
     dataset_name: str = "cifar10",
+    attack_config: dict[str, object] | None = None,
 ) -> AttackResult:
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     if "model_state" not in checkpoint:
@@ -54,8 +73,10 @@ def run_attack(
 
     attacked_state, attack_config = _attack_state_dict(
         attack_name=attack_name,
-        state_dict=checkpoint["model_state"],
+        checkpoint=checkpoint,
         seed=seed,
+        dataset_name=dataset_name,
+        attack_config=attack_config,
     )
 
     run_id = f"{attack_name}-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:8]}"

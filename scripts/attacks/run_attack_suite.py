@@ -36,12 +36,18 @@ def _resolve_checkpoint_path(checkpoint: Path) -> Path:
 @hydra.main(version_base=None, config_path="../../configs/attacks", config_name="main")
 def main(cfg: DictConfig) -> None:
     checkpoint_path = _resolve_checkpoint_path(Path(cfg.checkpoint))
+    attack_config = {
+        key: value
+        for key, value in dict(cfg.attack).items()
+        if key != "name"
+    }
     result = run_attack(
         attack_name=str(cfg.attack.name),
         checkpoint_path=checkpoint_path,
         output_root=Path(cfg.output_root),
         seed=int(cfg.seed),
         dataset_name=str(cfg.dataset.name),
+        attack_config=attack_config,
     )
     print(f"Attack output directory: {result.output_dir}")
     print(f"Attacked checkpoint: {result.attacked_checkpoint}")
