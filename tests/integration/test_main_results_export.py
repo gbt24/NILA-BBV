@@ -36,3 +36,20 @@ def test_evaluation_and_reporting_export_three_tables(tmp_path: Path) -> None:
     assert bundle.main_table.exists()
     assert bundle.ablation_table.exists()
     assert bundle.robustness_table.exists()
+    assert bundle.main_figure.exists()
+    assert bundle.tradeoff_figure.exists()
+    assert bundle.summary_report.exists()
+    assert bundle.main_table.name == "cifar10-main-main-results.csv"
+    assert bundle.ablation_table.name == "cifar10-main-ablation-results.csv"
+    assert bundle.robustness_table.name == "cifar10-main-robustness-results.csv"
+    assert bundle.main_figure.name == "cifar10-main-main-figure.svg"
+    assert bundle.tradeoff_figure.name == "cifar10-main-tradeoff-figure.svg"
+    assert bundle.summary_report.name == "cifar10-main-summary.md"
+
+    summary_text = bundle.summary_report.read_text(encoding="utf-8")
+    assert "acceptance_rate" in summary_text
+    assert "ambiguity_rate" in summary_text
+    assert "fpr" in summary_text
+    assert "fnr" in summary_text
+    assert "false_claim_acceptance_rate" in summary_text
+    assert "robustness_acceptance_rate" in summary_text

@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bbv.evaluation import EvaluationSummary
+from bbv.evaluation.stats import SUMMARY_METRIC_KEYS
+from bbv.evaluation.summary import (
+    ABLATION_RESULT_COLUMNS,
+    MAIN_RESULT_COLUMNS,
+    ROBUSTNESS_RESULT_COLUMNS,
+)
 from bbv.reporting.templates import build_tradeoff_svg
 
 
@@ -15,15 +21,12 @@ class ReportBundle:
     ablation_table: Path
     robustness_table: Path
     main_figure: Path
+    tradeoff_figure: Path
     summary_report: Path
 
 
-def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
+def _write_csv(path: Path, rows: list[dict[str, object]], headers: tuple[str, ...]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if not rows:
-        path.write_text("\n", encoding="utf-8")
-        return
-    headers = list(rows[0].keys())
     lines = [",".join(headers)]
     for row in rows:
         values = [str(row.get(header, "")) for header in headers]
@@ -72,15 +75,15 @@ def _write_main_figure(path: Path, metrics: dict[str, float]) -> None:
 
 def _write_summary(path: Path, dataset: str, study: str, summary: EvaluationSummary) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    metric_lines = [
+        f"- {key}: {summary.metrics.get(key, 0.0):.4f}"
+        for key in SUMMARY_METRIC_KEYS
+    ]
     lines = [
         f"# Report Summary ({dataset} / {study})",
         "",
         "## Key Metrics",
-        f"- acceptance_rate: {summary.metrics.get('acceptance_rate', 0.0):.4f}",
-        f"- ambiguity_rate: {summary.metrics.get('ambiguity_rate', 0.0):.4f}",
-        f"- fpr: {summary.metrics.get('fpr', 0.0):.4f}",
-        f"- fnr: {summary.metrics.get('fnr', 0.0):.4f}",
-        f"- robustness_acceptance_rate: {summary.metrics.get('robustness_acceptance_rate', 0.0):.4f}",
+        *metric_lines,
         "",
         f"main_rows: {len(summary.main_rows)}",
         f"ablation_rows: {len(summary.ablation_rows)}",
@@ -110,9 +113,9 @@ def export_report_bundle(
     tradeoff_figure = figures_dir / f"{prefix}-tradeoff-figure.svg"
     summary_report = summaries_dir / f"{prefix}-summary.md"
 
-    _write_csv(main_table, summary.main_rows)
-    _write_csv(ablation_table, summary.ablation_rows)
-    _write_csv(robustness_table, summary.robustness_rows)
+    _write_csv(main_table, summary.main_rows, MAIN_RESULT_COLUMNS)
+    _write_csv(ablation_table, summary.ablation_rows, ABLATION_RESULT_COLUMNS)
+    _write_csv(robustness_table, summary.robustness_rows, ROBUSTNESS_RESULT_COLUMNS)
     _write_main_figure(main_figure, summary.metrics)
     _write_tradeoff_figure(tradeoff_figure, summary.main_rows)
     _write_summary(summary_report, dataset, study, summary)
@@ -122,5 +125,6 @@ def export_report_bundle(
         ablation_table=ablation_table,
         robustness_table=robustness_table,
         main_figure=main_figure,
+        tradeoff_figure=tradeoff_figure,
         summary_report=summary_report,
     )
