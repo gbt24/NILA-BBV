@@ -15,6 +15,7 @@ def test_run_watermark_baseline_generates_artifacts_and_verification(tmp_path: P
             "seed=0",
             "owner.id=owner0",
             "watermarking.code_length=8",
+            "watermarking.wm_weight=0.35",
             "federated.rounds=1",
             "federated.num_clients=3",
             "dataset.samples_per_client=12",
@@ -35,4 +36,5 @@ def test_run_watermark_baseline_generates_artifacts_and_verification(tmp_path: P
 
     assert artifacts["owner_id"] == "owner0"
     assert len(artifacts["codebook"]) == 8
+    assert artifacts["wm_train_config"]["wm_weight"] == 0.35
     assert verification["owner_id"] == "owner0"

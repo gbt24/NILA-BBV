@@ -1,2 +1,3 @@
 name: baseline
 code_length: 16
+wm_weight: 0.2

@@ -51,5 +51,95 @@ def test_verification_pipeline_exports_summary_and_calibration(tmp_path: Path) -
 
     assert "owner_score" in result
     assert "competitor_scores" in result
+    assert "query_budget" in result
+    assert "hard_label_only" in result
     assert (train_result.run_dir / "verification_margin_summary.json").exists()
     assert (train_result.run_dir / "calibration_artifacts.json").exists()
+
+
+def test_verification_budget_reserves_negative_evidence_queries(tmp_path: Path) -> None:
+    train_result = train_federated(
+        output_root=tmp_path / "outputs",
+        seed=0,
+        dataset_name="cifar10",
+        model_name="resnet18",
+        num_classes=10,
+        num_clients=3,
+        rounds=1,
+        participation_rate=1.0,
+        local_epochs=1,
+        batch_size=8,
+        learning_rate=0.05,
+        samples_per_client=12,
+    )
+
+    codebook = generate_codebook(owner_id="owner0", code_length=8, seed=0)
+    pos_queries = build_positive_queries(codebook=codebook, seed=0)
+    neg_queries = build_negative_queries(codebook=codebook, seed=0)
+    artifacts_path = train_result.run_dir / "owner_artifacts.json"
+    save_owner_artifacts(
+        path=artifacts_path,
+        owner_id="owner0",
+        codebook=codebook,
+        queries=pos_queries,
+        negative_queries=neg_queries,
+    )
+
+    result = run_verification_from_checkpoint(
+        checkpoint_path=train_result.checkpoint_path,
+        artifacts_path=artifacts_path,
+        verification_path=train_result.run_dir / "verification_budgeted_summary.json",
+        calibration_path=train_result.run_dir / "calibration_budgeted.json",
+        decision_threshold=0.5,
+        margin=0.05,
+        competitor_owner_ids=["owner1", "owner2"],
+        seed=0,
+        query_budget=4,
+    )
+
+    assert result["query_budget"] == 4
+    assert result["queried_positive_count"] == 2
+    assert result["queried_negative_count"] == 2
+    assert result["negative_asr"] >= 0.0
+
+
+def test_verification_budget_reallocates_unused_negative_capacity(tmp_path: Path) -> None:
+    train_result = train_federated(
+        output_root=tmp_path / "outputs",
+        seed=0,
+        dataset_name="cifar10",
+        model_name="resnet18",
+        num_classes=10,
+        num_clients=3,
+        rounds=1,
+        participation_rate=1.0,
+        local_epochs=1,
+        batch_size=8,
+        learning_rate=0.05,
+        samples_per_client=12,
+    )
+
+    codebook = generate_codebook(owner_id="owner0", code_length=8, seed=0)
+    pos_queries = build_positive_queries(codebook=codebook, seed=0)
+    artifacts_path = train_result.run_dir / "owner_artifacts_short_neg.json"
+    save_owner_artifacts(
+        path=artifacts_path,
+        owner_id="owner0",
+        codebook=codebook,
+        queries=pos_queries,
+        negative_queries=[build_negative_queries(codebook=codebook, seed=0)[0]],
+    )
+
+    result = run_verification_from_checkpoint(
+        checkpoint_path=train_result.checkpoint_path,
+        artifacts_path=artifacts_path,
+        verification_path=train_result.run_dir / "verification_reallocated_summary.json",
+        calibration_path=train_result.run_dir / "calibration_reallocated.json",
+        decision_threshold=0.5,
+        margin=0.05,
+        competitor_owner_ids=["owner1", "owner2"],
+        seed=0,
+        query_budget=4,
+    )
+
+    assert result["queried_positive_count"] + result["queried_negative_count"] == 4

@@ -4,3 +4,6 @@ margin: 0.05
 competitor_owner_ids:
   - owner1
   - owner2
+query_budget: null
+hard_label_only: true
+batch_size: 16
