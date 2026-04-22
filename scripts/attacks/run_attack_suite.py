@@ -15,9 +15,13 @@ def _resolve_checkpoint_path(checkpoint: Path) -> Path:
         return checkpoint
     if checkpoint.as_posix().endswith("outputs/runs/latest/checkpoint.pt"):
         runs_root = checkpoint.parent.parent
-        candidates = [path for path in runs_root.iterdir() if path.is_dir()] if runs_root.exists() else []
+        candidates = [
+            path
+            for path in runs_root.iterdir()
+            if path.is_dir() and ((path / "best_checkpoint.pt").exists() or (path / "checkpoint.pt").exists())
+        ] if runs_root.exists() else []
         if not candidates:
-            raise FileNotFoundError(f"no run directories found under {runs_root}")
+            raise FileNotFoundError(f"no run directories with checkpoints found under {runs_root}")
         candidates.sort(
             key=lambda path: (path / "best_checkpoint.pt").stat().st_mtime
             if (path / "best_checkpoint.pt").exists()
