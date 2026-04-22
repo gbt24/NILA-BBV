@@ -51,10 +51,17 @@ class FedAvgResult:
     best_checkpoint_path: Path
     allocation_path: Path | None
 
+    @property
+    def output_dir(self) -> Path:
+        return self.run_dir
 
-def build_model_input_shape(dataset_name: str) -> tuple[int, int, int]:
-    if dataset_name.lower() not in {"cifar10", "cifar100", "femnist", "shakespeare", "sent140"}:
+
+def build_model_input_shape(dataset_name: str) -> tuple[int, ...]:
+    normalized_name = dataset_name.lower()
+    if normalized_name not in {"cifar10", "cifar100", "femnist", "shakespeare", "sent140"}:
         raise ValueError(f"unsupported dataset: {dataset_name}")
+    if normalized_name in {"sent140", "shakespeare"}:
+        return (32,)
     return (3, 32, 32)
 
 
@@ -66,15 +73,26 @@ def build_client(
     num_classes: int,
     seed: int,
 ) -> FederatedClient:
-    channels, height, width = build_model_input_shape(dataset_name)
+    input_shape = build_model_input_shape(dataset_name)
     generator = torch.Generator().manual_seed(seed + client_id)
-    features = torch.randn(
-        samples_per_client,
-        channels,
-        height,
-        width,
-        generator=generator,
-    )
+    if len(input_shape) == 1:
+        sequence_length = input_shape[0]
+        features = torch.randint(
+            low=0,
+            high=2048,
+            size=(samples_per_client, sequence_length),
+            generator=generator,
+            dtype=torch.long,
+        )
+    else:
+        channels, height, width = input_shape
+        features = torch.randn(
+            samples_per_client,
+            channels,
+            height,
+            width,
+            generator=generator,
+        )
     labels = torch.randint(
         low=0,
         high=num_classes,
@@ -93,7 +111,7 @@ def build_client(
 
 
 def build_server(
-    *, model_name: str, num_classes: int, seed: int, input_shape: tuple[int, int, int] | None = None
+    *, model_name: str, num_classes: int, seed: int, input_shape: tuple[int, ...] | None = None
 ) -> FederatedServer:
     torch.manual_seed(seed)
     return FederatedServer(
@@ -471,7 +489,7 @@ def _build_evaluation_tensors(
     return torch.stack(features), torch.tensor(labels, dtype=torch.long)
 
 
-def _infer_input_shape(dataset: object) -> tuple[int, int, int]:
+def _infer_input_shape(dataset: object) -> tuple[int, ...]:
     sample, _ = dataset[0]
     return tuple(int(dimension) for dimension in sample.shape)
 

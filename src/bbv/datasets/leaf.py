@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import Dataset
 
 from bbv.datasets.leaf_femnist import load_femnist_split
+from bbv.datasets.text import load_sent140_split
 
 
 class LeafPlaceholderDataset(Dataset):
@@ -44,7 +45,7 @@ class LeafDatasetStub:
 _LEAF_DATASETS: dict[str, LeafDatasetSpec] = {
     "femnist": LeafDatasetSpec(dataset_name="femnist", num_classes=62, is_stub=False),
     "shakespeare": LeafDatasetSpec(dataset_name="shakespeare", num_classes=80),
-    "sent140": LeafDatasetSpec(dataset_name="sent140", num_classes=2),
+    "sent140": LeafDatasetSpec(dataset_name="sent140", num_classes=2, is_stub=False),
 }
 
 
@@ -61,6 +62,17 @@ def load_leaf_dataset(
     spec = get_leaf_dataset_spec(name)
     if name.lower() == "femnist":
         split = load_femnist_split(root=root, train=train)
+        return LeafDatasetStub(
+            spec=spec,
+            root=root,
+            split_name="train" if train else "test",
+            download=download,
+            dataset=split.dataset,
+            client_indices=split.client_indices,
+            user_ids=split.user_ids,
+        )
+    if name.lower() == "sent140":
+        split = load_sent140_split(root=root, train=train)
         return LeafDatasetStub(
             spec=spec,
             root=root,
