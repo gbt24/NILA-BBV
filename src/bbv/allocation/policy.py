@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from math import exp
 
-from bbv.allocation.features import ClientStats
+from bbv.allocation.features import ClientStats, build_client_stats_from_histogram
 
 
 def _sigmoid(value: float) -> float:
@@ -19,18 +19,14 @@ def estimate_adaptability(
     if stats is None:
         if client_label_histograms is None:
             raise ValueError("client_label_histograms or stats must be provided")
-        stats = []
-        for histogram in client_label_histograms:
-            total = sum(histogram.values())
-            skew_ratio = max(histogram.values()) / total if total > 0 else 1.0
-            stats.append(
-                ClientStats(
-                    class_coverage=len(histogram),
-                    skew_ratio=float(skew_ratio),
-                    main_wm_alignment=0.0,
-                    privacy_penalty=0.1,
-                )
+        stats = [
+            build_client_stats_from_histogram(
+                histogram=histogram,
+                main_wm_alignment=0.0,
+                privacy_penalty=0.1,
             )
+            for histogram in client_label_histograms
+        ]
 
     scores: dict[int, float] = {}
     for client_id, item in enumerate(stats):

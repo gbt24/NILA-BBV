@@ -1,0 +1,7 @@
+name: sent140
+num_classes: 2
+samples_per_client: 24
+partition_type: natural
+concentration: 1.0
+shards_per_client: 2
+quantity_sigma: 0.0

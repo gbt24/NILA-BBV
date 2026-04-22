@@ -1,0 +1,7 @@
+name: cifar100
+num_classes: 100
+samples_per_client: 24
+partition_type: dirichlet
+concentration: 1.0
+shards_per_client: 2
+quantity_sigma: 0.0

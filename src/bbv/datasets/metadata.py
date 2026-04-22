@@ -19,6 +19,7 @@ class SplitMetadata:
     client_indices: list[list[int]]
     client_label_histograms: list[dict[str, int]]
     partition_type: str = "dirichlet"
+    partition_params: dict[str, float | int | str] | None = None
 
 
 def build_split_metadata(
@@ -35,6 +36,7 @@ def build_split_metadata(
         client_indices=partition.client_indices,
         client_label_histograms=partition.client_label_histograms,
         partition_type=partition.partition_type,
+        partition_params=partition.partition_params,
     )
 
 

@@ -25,6 +25,10 @@ def main(cfg: DictConfig) -> None:
         batch_size=int(cfg.federated.batch_size),
         learning_rate=float(cfg.federated.learning_rate),
         samples_per_client=int(cfg.dataset.samples_per_client),
+        partition_type=str(cfg.dataset.partition_type),
+        concentration=float(cfg.dataset.concentration),
+        shards_per_client=int(cfg.dataset.shards_per_client),
+        quantity_sigma=float(cfg.dataset.quantity_sigma),
     )
     print(f"FedAvg run directory: {Path(result.run_dir)}")
 

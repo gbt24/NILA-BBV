@@ -1,0 +1,17 @@
+defaults:
+  - dataset: cifar10
+  - federated: fedavg
+  - model: resnet18
+  - allocation: adaptive
+  - watermarking: baseline
+  - owner: owner0
+  - verification: baseline
+  - _self_
+
+seed: 0
+output_root: outputs/runs
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
