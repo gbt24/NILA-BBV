@@ -12,7 +12,7 @@ from bbv.evaluation.summary import (
     MAIN_RESULT_COLUMNS,
     ROBUSTNESS_RESULT_COLUMNS,
 )
-from bbv.reporting.templates import build_tradeoff_svg
+from bbv.reporting.templates import build_score_distribution_svg, build_tradeoff_svg
 
 
 @dataclass(frozen=True)
@@ -20,8 +20,10 @@ class ReportBundle:
     main_table: Path
     ablation_table: Path
     robustness_table: Path
+    attack_table: Path
     main_figure: Path
     tradeoff_figure: Path
+    score_distribution_figure: Path
     summary_report: Path
 
 
@@ -99,6 +101,11 @@ def _write_tradeoff_figure(path: Path, rows: list[dict[str, object]]) -> None:
     path.write_text(build_tradeoff_svg(rows), encoding="utf-8")
 
 
+def _write_score_distribution_figure(path: Path, rows: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(build_score_distribution_svg(rows), encoding="utf-8")
+
+
 def export_report_bundle(
     *, dataset: str, study: str, summary: EvaluationSummary, output_root: Path
 ) -> ReportBundle:
@@ -111,22 +118,28 @@ def export_report_bundle(
     main_table = tables_dir / f"{prefix}-main-results.csv"
     ablation_table = tables_dir / f"{prefix}-ablation-results.csv"
     robustness_table = tables_dir / f"{prefix}-robustness-results.csv"
+    attack_table = tables_dir / "attack-robustness.csv"
     main_figure = figures_dir / f"{prefix}-main-figure.svg"
     tradeoff_figure = figures_dir / f"{prefix}-tradeoff-figure.svg"
+    score_distribution_figure = figures_dir / "owner-nonowner-score-distribution.svg"
     summary_report = summaries_dir / f"{prefix}-summary.md"
 
     _write_csv(main_table, summary.main_rows, MAIN_RESULT_COLUMNS)
     _write_csv(ablation_table, summary.ablation_rows, ABLATION_RESULT_COLUMNS)
     _write_csv(robustness_table, summary.robustness_rows, ROBUSTNESS_RESULT_COLUMNS)
+    _write_csv(attack_table, summary.robustness_rows, ROBUSTNESS_RESULT_COLUMNS)
     _write_main_figure(main_figure, summary.metrics)
     _write_tradeoff_figure(tradeoff_figure, summary.main_rows)
+    _write_score_distribution_figure(score_distribution_figure, summary.main_rows)
     _write_summary(summary_report, dataset, study, summary)
 
     return ReportBundle(
         main_table=main_table,
         ablation_table=ablation_table,
         robustness_table=robustness_table,
+        attack_table=attack_table,
         main_figure=main_figure,
         tradeoff_figure=tradeoff_figure,
+        score_distribution_figure=score_distribution_figure,
         summary_report=summary_report,
     )

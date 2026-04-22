@@ -78,3 +78,28 @@ def test_export_report_bundle_summary_includes_all_key_metrics(tmp_path: Path) -
     assert "fnr" in summary_text
     assert "false_claim_acceptance_rate" in summary_text
     assert "robustness_acceptance_rate" in summary_text
+
+
+def test_report_bundle_exports_score_distribution_and_attack_table(tmp_path: Path) -> None:
+    summary = EvaluationSummary(
+        main_rows=[
+            {"run_id": "r0", "owner_score": 0.8, "decision": True, "claim_type": "owner"},
+            {"run_id": "r1", "owner_score": 0.3, "decision": False, "claim_type": "false_claim"},
+        ],
+        ablation_rows=[{"run_id": "r0", "allocation_enabled": True}],
+        robustness_rows=[{"attack": "finetune", "decision": False, "owner_score": 0.4}],
+        metrics={
+            "acceptance_rate": 1.0,
+            "ambiguity_rate": 0.0,
+            "fpr": 0.0,
+            "fnr": 0.0,
+            "false_claim_acceptance_rate": 0.0,
+            "robustness_acceptance_rate": 0.0,
+            "privacy_leakage_auc": 0.5,
+        },
+    )
+
+    export_report_bundle(dataset="cifar10", study="main", summary=summary, output_root=tmp_path)
+
+    assert (tmp_path / "figures" / "owner-nonowner-score-distribution.svg").exists()
+    assert (tmp_path / "tables" / "attack-robustness.csv").exists()
