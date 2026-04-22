@@ -5,6 +5,8 @@ defaults:
 
 checkpoint: outputs/runs/latest/checkpoint.pt
 seed: 0
+seeds: [0, 1, 2]
+studies: [robustness]
 output_root: outputs/attacks
 
 hydra:

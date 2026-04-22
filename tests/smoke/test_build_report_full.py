@@ -2,6 +2,21 @@ from pathlib import Path
 import subprocess
 import sys
 
+from omegaconf import OmegaConf
+
+
+def test_main_config_supports_three_seed_experiment_matrix() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    train_cfg = OmegaConf.load(repo_root / "configs" / "train" / "main.yaml")
+    eval_cfg = OmegaConf.load(repo_root / "configs" / "eval" / "main.yaml")
+    attacks_cfg = OmegaConf.load(repo_root / "configs" / "attacks" / "main.yaml")
+    report_cfg = OmegaConf.load(repo_root / "configs" / "report" / "main.yaml")
+
+    assert list(train_cfg.seeds) == [0, 1, 2]
+    assert "false_claim" in list(eval_cfg.studies)
+    assert "robustness" in list(attacks_cfg.studies)
+    assert "main" in list(report_cfg.studies)
+
 
 def test_task10_config_surface_and_report_bundle_path(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]

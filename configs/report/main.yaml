@@ -7,6 +7,8 @@ outputs_dir: outputs/runs
 attacks_dir: outputs/attacks
 report_root: outputs
 bundle_dir: ${report_root}
+seeds: [0, 1, 2]
+studies: [main, ablation, false_claim, robustness]
 
 hydra:
   run:

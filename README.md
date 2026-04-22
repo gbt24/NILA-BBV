@@ -126,3 +126,49 @@ Generated artifacts are exported to:
 - `outputs/figures/`
 - `outputs/tables/`
 - `outputs/summaries/`
+
+## Research-Grade Main Experiment Matrix
+
+The repository now exposes a standard 3-seed experiment surface through the main configs:
+
+- `configs/train/main.yaml`
+- `configs/eval/main.yaml`
+- `configs/attacks/main.yaml`
+- `configs/report/main.yaml`
+
+Default matrix metadata:
+
+- `seeds: [0, 1, 2]`
+- training/report studies: `main`, `ablation`, `false_claim`, `robustness`
+- attack studies: `robustness`
+
+Supported primary datasets for the first research matrix:
+
+- `cifar10`
+- `cifar100`
+- `femnist`
+- `sent140`
+
+Recommended commands:
+
+```bash
+uv run python scripts/train/run_watermark_baseline.py dataset=cifar10 allocation=adaptive owner.id=owner0 seed=0
+uv run python scripts/train/run_watermark_baseline.py dataset=cifar10 allocation=adaptive owner.id=owner0 seed=1
+uv run python scripts/train/run_watermark_baseline.py dataset=cifar10 allocation=adaptive owner.id=owner0 seed=2
+
+uv run python scripts/eval/run_verification.py dataset=cifar10 verification=margin owner.id=owner0 seed=0
+
+uv run python scripts/attacks/run_attack_suite.py attack=finetune dataset=cifar10
+uv run python scripts/attacks/run_attack_suite.py attack=distillation dataset=cifar10
+uv run python scripts/attacks/run_attack_suite.py attack=extraction dataset=cifar10
+
+uv run python scripts/report/build_report.py dataset=cifar10 study=main outputs_dir=outputs/runs attacks_dir=outputs/attacks
+```
+
+Dataset-specific config checks:
+
+```bash
+uv run python scripts/train/run_watermark_baseline.py --cfg job dataset=cifar100 allocation=adaptive
+uv run python scripts/eval/run_verification.py --cfg job dataset=cifar100 verification=margin
+uv run python scripts/report/build_report.py --cfg job dataset=cifar100 study=main
+```

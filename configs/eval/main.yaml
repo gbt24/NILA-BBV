@@ -5,6 +5,8 @@ defaults:
   - _self_
 
 seed: 0
+seeds: [0, 1, 2]
+studies: [main, false_claim]
 output_root: outputs/runs
 
 hydra:
