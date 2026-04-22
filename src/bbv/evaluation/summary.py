@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bbv.evaluation.stats import compute_summary_metrics
+from bbv.privacy import infer_label_skew_from_client_stats
 
 
 MAIN_RESULT_COLUMNS = (
@@ -42,6 +43,7 @@ class EvaluationSummary:
     ablation_rows: list[dict[str, object]]
     robustness_rows: list[dict[str, object]]
     metrics: dict[str, object]
+    privacy_leakage_auc: float = 0.5
 
 
 def _load_json(path: Path) -> dict[str, object]:
@@ -68,6 +70,7 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
         run_dirs = sorted(path for path in results_root.iterdir() if path.is_dir())
         if (results_root / "verification_margin_summary.json").exists():
             run_dirs = [results_root] + run_dirs
+        privacy_stats: list[dict[str, float | int]] = []
         for run_dir in run_dirs:
             summary_path = run_dir / "verification_margin_summary.json"
             if not summary_path.exists():
@@ -110,6 +113,22 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
                 )
             )
 
+            allocation_path = run_dir / "allocation_assignments.json"
+            if allocation_path.exists():
+                allocation_payload = _load_json(allocation_path)
+                round_assignments = allocation_payload.get("round_assignments", [])
+                if isinstance(round_assignments, list):
+                    for round_assignment in round_assignments:
+                        assignments = round_assignment.get("assignments", {})
+                        if not isinstance(assignments, dict):
+                            continue
+                        for assignment in assignments.values():
+                            if not isinstance(assignment, dict):
+                                continue
+                            stats = assignment.get("stats")
+                            if isinstance(stats, dict):
+                                privacy_stats.append(stats)
+
     robustness_rows: list[dict[str, object]] = []
     if attacks_root is not None:
         attacks_root = Path(attacks_root)
@@ -138,10 +157,22 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
         main_rows=main_rows,
         robustness_rows=robustness_rows,
     )
+    privacy_leakage_auc = 0.5
+    if privacy_stats:
+        skew_targets = [int(float(item.get("skew_ratio", 0.0)) >= 0.5) for item in privacy_stats]
+        inference = infer_label_skew_from_client_stats(
+            client_stats=privacy_stats,
+            skew_targets=skew_targets,
+        )
+        privacy_leakage_auc = float(inference["auc"])
+        metrics["privacy_leakage_auc"] = privacy_leakage_auc
+    else:
+        metrics["privacy_leakage_auc"] = privacy_leakage_auc
 
     return EvaluationSummary(
         main_rows=main_rows,
         ablation_rows=ablation_rows,
         robustness_rows=robustness_rows,
         metrics=metrics,
+        privacy_leakage_auc=privacy_leakage_auc,
     )

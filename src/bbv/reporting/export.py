@@ -85,6 +85,8 @@ def _write_summary(path: Path, dataset: str, study: str, summary: EvaluationSumm
         "## Key Metrics",
         *metric_lines,
         "",
+        f"privacy_leakage_auc: {summary.privacy_leakage_auc:.4f}",
+        "",
         f"main_rows: {len(summary.main_rows)}",
         f"ablation_rows: {len(summary.ablation_rows)}",
         f"robustness_rows: {len(summary.robustness_rows)}",

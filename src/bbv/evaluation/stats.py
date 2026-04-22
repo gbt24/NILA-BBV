@@ -10,6 +10,7 @@ SUMMARY_METRIC_KEYS = (
     "fnr",
     "false_claim_acceptance_rate",
     "robustness_acceptance_rate",
+    "privacy_leakage_auc",
 )
 
 
