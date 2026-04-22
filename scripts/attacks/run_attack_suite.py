@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import hydra
 from omegaconf import DictConfig
 
 from bbv.attacks import run_attack
+from bbv.verification import run_verification_from_checkpoint
 
 
 def _resolve_checkpoint_path(checkpoint: Path) -> Path:
@@ -36,6 +38,8 @@ def _resolve_checkpoint_path(checkpoint: Path) -> Path:
 @hydra.main(version_base=None, config_path="../../configs/attacks", config_name="main")
 def main(cfg: DictConfig) -> None:
     checkpoint_path = _resolve_checkpoint_path(Path(cfg.checkpoint))
+    source_run_dir = checkpoint_path.parent
+    artifacts_path = source_run_dir / "owner_artifacts.json"
     attack_config = {
         key: value
         for key, value in dict(cfg.attack).items()
@@ -49,6 +53,20 @@ def main(cfg: DictConfig) -> None:
         dataset_name=str(cfg.dataset.name),
         attack_config=attack_config,
     )
+    if artifacts_path.exists():
+        owner_payload = json.loads(artifacts_path.read_text(encoding="utf-8"))
+        owner_id = str(owner_payload.get("owner_id", "owner0"))
+        competitor_owner_ids = ["owner1" if owner_id != "owner1" else "owner0"]
+        run_verification_from_checkpoint(
+            checkpoint_path=result.attacked_checkpoint,
+            artifacts_path=artifacts_path,
+            verification_path=result.output_dir / "verification_after_attack.json",
+            calibration_path=result.output_dir / "calibration_after_attack.json",
+            decision_threshold=0.5,
+            margin=0.05,
+            competitor_owner_ids=competitor_owner_ids,
+            seed=int(cfg.seed),
+        )
     print(f"Attack output directory: {result.output_dir}")
     print(f"Attacked checkpoint: {result.attacked_checkpoint}")
 

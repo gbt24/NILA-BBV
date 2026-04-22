@@ -113,6 +113,8 @@ def verify_owner(
         "hard_label_only": hard_label_only,
         "queried_positive_count": queried_positive_count,
         "queried_negative_count": queried_negative_count,
+        "summary_path": str(verification_path),
+        "calibration_path": str(calibration_path),
     }
 
     calibration = calibrate_threshold(
@@ -129,8 +131,9 @@ def run_verification_from_checkpoint(
     *,
     checkpoint_path: Path,
     artifacts_path: Path,
-    verification_path: Path,
-    calibration_path: Path,
+    verification_path: Path | None = None,
+    calibration_path: Path | None = None,
+    output_dir: Path | None = None,
     decision_threshold: float,
     margin: float,
     competitor_owner_ids: list[str],
@@ -143,6 +146,14 @@ def run_verification_from_checkpoint(
 ) -> dict[str, object]:
     if query_budget is not None and query_budget <= 0:
         raise ValueError("query_budget must be greater than 0")
+
+    if output_dir is not None:
+        output_dir = Path(output_dir)
+    if verification_path is None:
+        base_dir = output_dir if output_dir is not None else checkpoint_path.parent
+        verification_path = base_dir / "verification_margin_summary.json"
+    if calibration_path is None:
+        calibration_path = verification_path.with_name("calibration_artifacts.json")
 
     artifacts = load_owner_artifacts(artifacts_path)
     if expected_owner_id is not None and str(artifacts["owner_id"]) != expected_owner_id:

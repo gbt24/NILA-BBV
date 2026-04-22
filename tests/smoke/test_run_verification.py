@@ -57,6 +57,7 @@ def test_run_verification_script_generates_outputs(tmp_path: Path) -> None:
     assert summary["query_budget"] == 4
     assert summary["hard_label_only"] is False
     assert "threshold" in calibration
+    assert latest == max(run_dirs, key=lambda path: (path / "checkpoint.pt").stat().st_mtime if (path / "checkpoint.pt").exists() else path.stat().st_mtime)
 
 
 def test_run_verification_script_rejects_owner_id_mismatch(tmp_path: Path) -> None:

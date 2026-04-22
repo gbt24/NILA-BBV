@@ -48,6 +48,7 @@ def test_attack_suite_script_generates_attacked_checkpoint(tmp_path: Path) -> No
     latest = attack_dirs[-1]
     assert (latest / "attacked_checkpoint.pt").exists()
     assert (latest / "attack_log.json").exists()
+    assert (latest / "verification_after_attack.json").exists()
 
 
 def test_attack_suite_script_supports_extraction_attack(tmp_path: Path) -> None:
