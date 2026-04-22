@@ -231,6 +231,53 @@ def _build_labels_tensor(client_dataset: ClientDataset) -> torch.Tensor:
     return torch.tensor(labels, dtype=torch.long)
 
 
+def _build_partition_from_natural_clients(
+    *,
+    labels: list[int],
+    natural_client_indices: list[list[int]],
+    num_clients: int,
+    samples_per_client: int,
+    seed: int,
+) -> tuple[PartitionResult, list[int]]:
+    if len(natural_client_indices) < num_clients:
+        raise ValueError("natural split does not provide enough clients")
+
+    generator = torch.Generator().manual_seed(seed)
+    selected_client_ids = torch.randperm(len(natural_client_indices), generator=generator).tolist()[:num_clients]
+    sampled_indices: list[int] = []
+    client_indices: list[list[int]] = []
+    histograms: list[dict[str, int]] = []
+
+    for client_id in selected_client_ids:
+        raw_indices = sorted(natural_client_indices[client_id])
+        if len(raw_indices) < samples_per_client:
+            raise ValueError(
+                "samples_per_client exceeds available samples for a natural FEMNIST client"
+            )
+        selected_indices = raw_indices[:samples_per_client]
+        client_indices.append(selected_indices)
+        sampled_indices.extend(selected_indices)
+
+        histogram: dict[str, int] = {}
+        for index in selected_indices:
+            label = str(int(labels[index]))
+            histogram[label] = histogram.get(label, 0) + 1
+        histograms.append(histogram)
+
+    partition = PartitionResult(
+        method_name="natural",
+        partition_type="natural",
+        partition_params={"source": "natural_client_indices"},
+        seed=seed,
+        num_clients=num_clients,
+        total_samples=len(sampled_indices),
+        client_indices=client_indices,
+        client_sample_counts=[len(indices) for indices in client_indices],
+        client_label_histograms=histograms,
+    )
+    return partition, sampled_indices
+
+
 def _flatten_gradients(model: torch.nn.Module) -> torch.Tensor:
     parts: list[torch.Tensor] = []
     for parameter in model.parameters():
@@ -486,8 +533,33 @@ def train_federated(
     input_shape = _infer_input_shape(loaded_dataset.dataset)
     val_features, val_labels = _build_evaluation_tensors(validation_dataset.dataset, 64)
     labels = [int(label) for label in getattr(loaded_dataset.dataset, "targets")]
-    if partition_type == "natural":
+    natural_client_indices = loaded_dataset.metadata.get("natural_client_indices")
+    if partition_type == "natural" and natural_client_indices is not None:
+        dataset_partition, sampled_indices = _build_partition_from_natural_clients(
+            labels=labels,
+            natural_client_indices=[list(indices) for indices in natural_client_indices],
+            num_clients=num_clients,
+            samples_per_client=samples_per_client,
+            seed=seed,
+        )
+        partition = dataset_partition
+    elif partition_type == "natural":
         sampled_indices = list(range(len(labels)))
+        selected_labels = [labels[index] for index in sampled_indices]
+        partition = build_partition(
+            selected_labels,
+            num_clients=num_clients,
+            concentration=concentration,
+            seed=seed,
+            partition_type=partition_type,
+            shards_per_client=shards_per_client,
+            quantity_sigma=quantity_sigma,
+        )
+        dataset_partition = _remap_partition_indices(
+            partition=partition,
+            sampled_indices=sampled_indices,
+            labels=labels,
+        )
     else:
         max_samples = num_clients * samples_per_client
         if len(labels) < max_samples:
@@ -497,33 +569,33 @@ def train_federated(
             )
         sample_generator = torch.Generator().manual_seed(seed)
         sampled_indices = torch.randperm(len(labels), generator=sample_generator).tolist()[:max_samples]
-    selected_labels = [labels[index] for index in sampled_indices]
-    partition = build_partition(
-        selected_labels,
-        num_clients=num_clients,
-        concentration=concentration,
-        seed=seed,
-        partition_type=partition_type,
-        shards_per_client=shards_per_client,
-        quantity_sigma=quantity_sigma,
-    )
-    if partition_type in {"dirichlet", "shard"}:
-        partition = _enforce_client_sample_budget(
-            partition=partition,
-            labels=selected_labels,
-            samples_per_client=samples_per_client,
+        selected_labels = [labels[index] for index in sampled_indices]
+        partition = build_partition(
+            selected_labels,
+            num_clients=num_clients,
+            concentration=concentration,
+            seed=seed,
+            partition_type=partition_type,
+            shards_per_client=shards_per_client,
+            quantity_sigma=quantity_sigma,
         )
-    elif partition_type in {"quantity_skew", "combined_label_quantity"}:
-        partition = _enforce_minimum_client_samples(
+        if partition_type in {"dirichlet", "shard"}:
+            partition = _enforce_client_sample_budget(
+                partition=partition,
+                labels=selected_labels,
+                samples_per_client=samples_per_client,
+            )
+        elif partition_type in {"quantity_skew", "combined_label_quantity"}:
+            partition = _enforce_minimum_client_samples(
+                partition=partition,
+                labels=selected_labels,
+                minimum_samples=2,
+            )
+        dataset_partition = _remap_partition_indices(
             partition=partition,
-            labels=selected_labels,
-            minimum_samples=2,
+            sampled_indices=sampled_indices,
+            labels=labels,
         )
-    dataset_partition = _remap_partition_indices(
-        partition=partition,
-        sampled_indices=sampled_indices,
-        labels=labels,
-    )
     partition_metadata = build_split_metadata(
         loaded_dataset.dataset_name,
         concentration=concentration,
@@ -697,6 +769,7 @@ def train_federated(
         metrics_path,
         {
             "dataset": dataset_name,
+            "dataset_name": dataset_name,
             "model": model_name,
             "seed": seed,
             "rounds": round_metrics,
@@ -706,6 +779,7 @@ def train_federated(
         metadata_path,
         {
             "dataset": dataset_name,
+            "dataset_name": dataset_name,
             "model": model_name,
             "seed": seed,
             "num_clients": num_clients,

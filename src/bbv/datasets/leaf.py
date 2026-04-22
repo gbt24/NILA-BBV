@@ -6,6 +6,8 @@ from pathlib import Path
 import torch
 from torch.utils.data import Dataset
 
+from bbv.datasets.leaf_femnist import load_femnist_split
+
 
 class LeafPlaceholderDataset(Dataset):
     def __init__(self, *, num_classes: int, train: bool) -> None:
@@ -35,10 +37,12 @@ class LeafDatasetStub:
     split_name: str
     download: bool
     dataset: Dataset
+    client_indices: list[list[int]] | None = None
+    user_ids: list[str] | None = None
 
 
 _LEAF_DATASETS: dict[str, LeafDatasetSpec] = {
-    "femnist": LeafDatasetSpec(dataset_name="femnist", num_classes=62),
+    "femnist": LeafDatasetSpec(dataset_name="femnist", num_classes=62, is_stub=False),
     "shakespeare": LeafDatasetSpec(dataset_name="shakespeare", num_classes=80),
     "sent140": LeafDatasetSpec(dataset_name="sent140", num_classes=2),
 }
@@ -55,6 +59,17 @@ def load_leaf_dataset(
     *, root: Path, train: bool, download: bool, name: str
 ) -> LeafDatasetStub:
     spec = get_leaf_dataset_spec(name)
+    if name.lower() == "femnist":
+        split = load_femnist_split(root=root, train=train)
+        return LeafDatasetStub(
+            spec=spec,
+            root=root,
+            split_name="train" if train else "test",
+            download=download,
+            dataset=split.dataset,
+            client_indices=split.client_indices,
+            user_ids=split.user_ids,
+        )
     return LeafDatasetStub(
         spec=spec,
         root=root,

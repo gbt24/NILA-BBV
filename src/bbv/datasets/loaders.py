@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from torch.utils.data import Dataset
@@ -18,6 +18,7 @@ class LoadedDataset:
     num_classes: int
     num_samples: int
     dataset: Dataset
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 _VISION_DATASETS = {
@@ -47,6 +48,13 @@ def load_dataset(
             num_classes=spec.num_classes,
             num_samples=len(leaf_dataset.dataset),
             dataset=leaf_dataset.dataset,
+            metadata={
+                "dataset_name": normalized_name,
+                "partition_type": spec.partition_type,
+                "is_stub": spec.is_stub,
+                "natural_client_indices": getattr(leaf_dataset, "client_indices", None),
+                "user_ids": getattr(leaf_dataset, "user_ids", None),
+            },
         )
 
     if normalized_name not in _VISION_DATASETS:
@@ -68,4 +76,9 @@ def load_dataset(
         num_classes=len(dataset.classes),
         num_samples=len(dataset),
         dataset=dataset,
+        metadata={
+            "dataset_name": normalized_name,
+            "partition_type": "dirichlet",
+            "is_stub": False,
+        },
     )
