@@ -27,6 +27,20 @@ def build_negative_queries(codebook: list[int], seed: int) -> list[torch.Tensor]
 def adapt_queries_to_shape(
     queries: list[torch.Tensor], feature_shape: torch.Size
 ) -> list[torch.Tensor]:
+    if len(feature_shape) == 1:
+        sequence_length = int(feature_shape[0])
+        adapted_tokens: list[torch.Tensor] = []
+        for query in queries:
+            flattened = query.flatten()
+            if flattened.numel() < sequence_length:
+                repeats = (sequence_length + flattened.numel() - 1) // flattened.numel()
+                flattened = flattened.repeat(repeats)
+            trimmed = flattened[:sequence_length]
+            normalized = torch.sigmoid(trimmed)
+            token_ids = torch.clamp((normalized * 2047).round(), min=0, max=2047).to(torch.long)
+            adapted_tokens.append(token_ids)
+        return adapted_tokens
+
     channels, height, width = feature_shape
     adapted: list[torch.Tensor] = []
     for query in queries:

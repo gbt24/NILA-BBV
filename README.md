@@ -172,3 +172,25 @@ uv run python scripts/train/run_watermark_baseline.py --cfg job dataset=cifar100
 uv run python scripts/eval/run_verification.py --cfg job dataset=cifar100 verification=margin
 uv run python scripts/report/build_report.py --cfg job dataset=cifar100 study=main
 ```
+
+## Preparing LEAF Datasets
+
+To automatically download and preprocess the LEAF-style datasets used by this repository:
+
+```bash
+uv run python scripts/data/prepare_leaf_datasets.py --dataset=femnist
+uv run python scripts/data/prepare_leaf_datasets.py --dataset=sent140
+```
+
+Or prepare both:
+
+```bash
+uv run python scripts/data/prepare_leaf_datasets.py --dataset=all
+```
+
+Default output layout:
+
+- `data/raw/femnist/train/*.json`
+- `data/raw/femnist/test/*.json`
+- `data/raw/sent140/train/*.json`
+- `data/raw/sent140/test/*.json`

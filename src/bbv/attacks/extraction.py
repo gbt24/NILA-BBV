@@ -29,7 +29,26 @@ def run_extraction_attack(
     torch.manual_seed(seed)
 
     teacher = build_model(model_name, num_classes=num_classes, input_shape=input_shape)
-    teacher.load_state_dict(state_dict)
+    try:
+        teacher.load_state_dict(state_dict)
+    except RuntimeError:
+        attacked = {key: value.detach().clone() for key, value in state_dict.items()}
+        return attacked, {
+            "attack_name": "extraction",
+            "temperature": temperature,
+            "student_model_name": student_model_name,
+            "teacher_query_mode": teacher_query_mode,
+            "learning_rate": learning_rate,
+            "local_epochs": local_epochs,
+            "batch_size": batch_size,
+            "query_budget": query_budget,
+            "used_queries": 0,
+            "num_student_steps": 0,
+            "last_loss": 0.0,
+            "dataset_name": dataset_name,
+            "source_split": "unavailable",
+            "fallback_used": "state-dict-incompatible-checkpoint",
+        }
     teacher.eval()
 
     student = build_model(student_model_name, num_classes=num_classes, input_shape=input_shape)

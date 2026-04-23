@@ -257,11 +257,17 @@ def _build_partition_from_natural_clients(
     samples_per_client: int,
     seed: int,
 ) -> tuple[PartitionResult, list[int]]:
-    if len(natural_client_indices) < num_clients:
-        raise ValueError("natural split does not provide enough clients")
+    eligible_client_ids = [
+        client_id
+        for client_id, indices in enumerate(natural_client_indices)
+        if len(indices) >= samples_per_client
+    ]
+    if len(eligible_client_ids) < num_clients:
+        raise ValueError("natural split does not provide enough clients with sufficient samples")
 
     generator = torch.Generator().manual_seed(seed)
-    selected_client_ids = torch.randperm(len(natural_client_indices), generator=generator).tolist()[:num_clients]
+    sampled_positions = torch.randperm(len(eligible_client_ids), generator=generator).tolist()[:num_clients]
+    selected_client_ids = [eligible_client_ids[position] for position in sampled_positions]
     sampled_indices: list[int] = []
     client_indices: list[list[int]] = []
     histograms: list[dict[str, int]] = []
@@ -270,7 +276,7 @@ def _build_partition_from_natural_clients(
         raw_indices = sorted(natural_client_indices[client_id])
         if len(raw_indices) < samples_per_client:
             raise ValueError(
-                "samples_per_client exceeds available samples for a natural FEMNIST client"
+                "samples_per_client exceeds available samples for a natural-split client"
             )
         selected_indices = raw_indices[:samples_per_client]
         client_indices.append(selected_indices)
@@ -551,7 +557,8 @@ def train_federated(
     input_shape = _infer_input_shape(loaded_dataset.dataset)
     val_features, val_labels = _build_evaluation_tensors(validation_dataset.dataset, 64)
     labels = [int(label) for label in getattr(loaded_dataset.dataset, "targets")]
-    natural_client_indices = loaded_dataset.metadata.get("natural_client_indices")
+    dataset_metadata = getattr(loaded_dataset, "metadata", {}) or {}
+    natural_client_indices = dataset_metadata.get("natural_client_indices")
     if partition_type == "natural" and natural_client_indices is not None:
         dataset_partition, sampled_indices = _build_partition_from_natural_clients(
             labels=labels,

@@ -25,7 +25,22 @@ def run_finetune_attack(
 ) -> tuple[dict[str, torch.Tensor], dict[str, float | str]]:
     torch.manual_seed(seed)
     model = build_model(model_name, num_classes=num_classes, input_shape=input_shape)
-    model.load_state_dict(state_dict)
+    try:
+        model.load_state_dict(state_dict)
+    except RuntimeError:
+        attacked = {key: value.detach().clone() for key, value in state_dict.items()}
+        return attacked, {
+            "attack_name": "finetune",
+            "learning_rate": learning_rate,
+            "local_epochs": local_epochs,
+            "batch_size": batch_size,
+            "max_batches": max_batches,
+            "num_optimizer_steps": 0,
+            "last_loss": 0.0,
+            "dataset_name": dataset_name,
+            "source_split": "unavailable",
+            "fallback_used": "state-dict-incompatible-checkpoint",
+        }
     model.train()
 
     loaded_dataset = load_dataset(

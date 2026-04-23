@@ -33,7 +33,7 @@ def main(cfg: DictConfig) -> None:
         output_root=Path(cfg.output_root),
         seed=int(cfg.seed),
         dataset_name=str(cfg.dataset.name),
-        model_name=str(cfg.model.name),
+        model_name=str(cfg.dataset.get("model_name", cfg.model.name)),
         num_classes=int(cfg.dataset.num_classes),
         num_clients=int(cfg.federated.num_clients),
         rounds=int(cfg.federated.rounds),
