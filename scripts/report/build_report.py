@@ -8,6 +8,7 @@ import hydra
 from omegaconf import DictConfig
 
 from bbv.evaluation import summarize_outputs
+from bbv.federated.progress import progress_iterable
 from bbv.reporting import export_report_bundle
 
 
@@ -17,7 +18,15 @@ def main(cfg: DictConfig) -> None:
     attacks_dir = Path(cfg.attacks_dir)
     report_root = Path(cfg.get("bundle_dir", cfg.report_root))
 
+    progress_steps = progress_iterable(
+        ["summarize_outputs", "export_bundle"],
+        description="Report build",
+        enabled=bool(cfg.progress.enabled),
+        leave=True,
+    )
+    next(progress_steps)
     summary = summarize_outputs(results_root=outputs_dir, attacks_root=attacks_dir)
+    next(progress_steps)
     bundle = export_report_bundle(
         dataset=str(cfg.dataset.name),
         study=str(cfg.study.name),

@@ -1,6 +1,7 @@
 defaults:
   - attack: finetune
   - dataset: cifar10
+  - progress: default
   - _self_
 
 checkpoint: outputs/runs/latest/checkpoint.pt

@@ -1,6 +1,7 @@
 defaults:
   - dataset: cifar10
   - study: main
+  - progress: default
   - _self_
 
 outputs_dir: outputs/runs

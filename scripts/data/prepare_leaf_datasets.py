@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bbv.federated.progress import progress_iterable
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Prepare LEAF datasets for bbv")
@@ -13,6 +15,7 @@ def main() -> int:
     parser.add_argument("--cache-root", default="data/cache", type=Path)
     parser.add_argument("--leaf-root", default=None, type=Path)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--no-progress", action="store_true")
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[2]
@@ -28,7 +31,12 @@ def main() -> int:
     if args.force:
         base_args.append("--force")
 
-    for script in scripts:
+    for script in progress_iterable(
+        scripts,
+        description="Preparing datasets",
+        enabled=not args.no_progress,
+        leave=True,
+    ):
         subprocess.run([sys.executable, str(script), *base_args], cwd=repo_root, check=True)
     return 0
 

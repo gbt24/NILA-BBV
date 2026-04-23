@@ -8,6 +8,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
+from bbv.federated.progress import progress_iterable
 from bbv.verification import run_verification_from_checkpoint
 
 
@@ -45,10 +46,18 @@ def _find_latest_run_dir(output_root: Path, owner_id: str | None = None) -> Path
 @hydra.main(version_base=None, config_path="../../configs/eval", config_name="main")
 def main(cfg: DictConfig) -> None:
     output_root = Path(cfg.output_root)
+    progress_steps = progress_iterable(
+        ["locate_run", "verify"],
+        description="Verification",
+        enabled=bool(cfg.progress.enabled),
+        leave=True,
+    )
+    next(progress_steps)
     run_dir = _find_latest_run_dir(output_root, owner_id=str(cfg.owner.id))
     checkpoint_path = run_dir / "best_checkpoint.pt"
     if not checkpoint_path.exists():
         checkpoint_path = run_dir / "checkpoint.pt"
+    next(progress_steps)
     summary = run_verification_from_checkpoint(
         checkpoint_path=checkpoint_path,
         artifacts_path=run_dir / "owner_artifacts.json",

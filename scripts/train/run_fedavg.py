@@ -29,6 +29,7 @@ def main(cfg: DictConfig) -> None:
         concentration=float(cfg.dataset.concentration),
         shards_per_client=int(cfg.dataset.shards_per_client),
         quantity_sigma=float(cfg.dataset.quantity_sigma),
+        progress_enabled=bool(cfg.progress.enabled),
     )
     print(f"FedAvg run directory: {Path(result.run_dir)}")
 

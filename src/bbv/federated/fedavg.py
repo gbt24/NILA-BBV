@@ -24,6 +24,7 @@ from bbv.datasets.partitions import PartitionResult, build_partition
 from bbv.federated.evaluate import evaluate_accuracy
 from bbv.federated.client_data import ClientDataset, build_client_datasets
 from bbv.federated.hooks import WatermarkHook
+from bbv.federated.progress import progress_iterable
 from bbv.models import build_model
 from bbv.utils.io import write_json
 from bbv.watermarking import compute_loss_components
@@ -522,6 +523,7 @@ def train_federated(
     allocation_enabled: bool = False,
     allocation_budget_ratio: float = 0.3,
     allocation_base_loss_weight: float = 0.1,
+    progress_enabled: bool = True,
 ) -> FedAvgResult:
     _validate_inputs(
         num_clients=num_clients,
@@ -648,7 +650,14 @@ def train_federated(
     rng = torch.Generator().manual_seed(seed)
     best_val_accuracy = -1.0
 
-    for round_id in range(1, rounds + 1):
+    round_iterator = progress_iterable(
+        range(1, rounds + 1),
+        description="Rounds",
+        enabled=progress_enabled,
+        leave=True,
+        position=0,
+    )
+    for round_id in round_iterator:
         permutation = torch.randperm(num_clients, generator=rng).tolist()
         selected_ids = permutation[:selected_per_round]
         selected_clients = [clients[client_id] for client_id in selected_ids]
@@ -717,7 +726,14 @@ def train_federated(
 
         local_states: list[dict[str, torch.Tensor]] = []
         local_loss_summaries: list[dict[str, float]] = []
-        for client in selected_clients:
+        client_iterator = progress_iterable(
+            selected_clients,
+            description=f"Clients (round {round_id})",
+            enabled=progress_enabled,
+            leave=False,
+            position=1,
+        )
+        for client in client_iterator:
             client_watermark_hook = watermark_hook
             if watermark_hook is not None and allocation_enabled:
                 assignment = assignment_for_round.get(client.client_id, {"enabled": False, "loss_weight": 0.0})

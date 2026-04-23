@@ -9,6 +9,7 @@ import hydra
 from omegaconf import DictConfig
 
 from bbv.attacks import run_attack
+from bbv.federated.progress import progress_iterable
 from bbv.verification import run_verification_from_checkpoint
 
 
@@ -37,6 +38,13 @@ def _resolve_checkpoint_path(checkpoint: Path) -> Path:
 
 @hydra.main(version_base=None, config_path="../../configs/attacks", config_name="main")
 def main(cfg: DictConfig) -> None:
+    progress_steps = progress_iterable(
+        ["resolve_checkpoint", "attack_model", "verify_attacked_model"],
+        description="Attack pipeline",
+        enabled=bool(cfg.progress.enabled),
+        leave=True,
+    )
+    next(progress_steps)
     checkpoint_path = _resolve_checkpoint_path(Path(cfg.checkpoint))
     source_run_dir = checkpoint_path.parent
     artifacts_path = source_run_dir / "owner_artifacts.json"
@@ -45,6 +53,7 @@ def main(cfg: DictConfig) -> None:
         for key, value in dict(cfg.attack).items()
         if key != "name"
     }
+    next(progress_steps)
     result = run_attack(
         attack_name=str(cfg.attack.name),
         checkpoint_path=checkpoint_path,
@@ -53,6 +62,7 @@ def main(cfg: DictConfig) -> None:
         dataset_name=str(cfg.dataset.name),
         attack_config=attack_config,
     )
+    next(progress_steps)
     if artifacts_path.exists():
         owner_payload = json.loads(artifacts_path.read_text(encoding="utf-8"))
         owner_id = str(owner_payload.get("owner_id", "owner0"))

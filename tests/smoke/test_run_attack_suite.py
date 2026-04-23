@@ -43,6 +43,7 @@ def test_attack_suite_script_generates_attacked_checkpoint(tmp_path: Path) -> No
         text=True,
     )
     assert attack_completed.returncode == 0, attack_completed.stderr
+    assert "Attack pipeline" in attack_completed.stderr
 
     attack_dirs = sorted(path for path in (tmp_path / "attacks").iterdir() if path.is_dir())
     latest = attack_dirs[-1]

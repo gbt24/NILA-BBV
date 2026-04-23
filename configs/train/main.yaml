@@ -2,6 +2,7 @@ defaults:
   - dataset: cifar10
   - federated: fedavg
   - model: resnet18
+  - progress: default
   - allocation: adaptive
   - watermarking: baseline
   - owner: owner0

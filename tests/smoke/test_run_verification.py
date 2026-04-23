@@ -46,6 +46,7 @@ def test_run_verification_script_generates_outputs(tmp_path: Path) -> None:
         text=True,
     )
     assert verify_completed.returncode == 0, verify_completed.stderr
+    assert "Verification" in verify_completed.stderr
 
     run_dirs = sorted(path for path in output_root.iterdir() if path.is_dir())
     latest = run_dirs[-1]

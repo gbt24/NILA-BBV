@@ -36,6 +36,7 @@ def test_build_report_script_exports_main_outputs(tmp_path: Path) -> None:
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+    assert "Report build" in completed.stderr
 
     assert (tmp_path / "outputs" / "tables" / "cifar10-main-main-results.csv").exists()
     assert (tmp_path / "outputs" / "figures" / "cifar10-main-main-figure.svg").exists()

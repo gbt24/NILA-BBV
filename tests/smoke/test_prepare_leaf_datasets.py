@@ -40,5 +40,6 @@ def test_prepare_leaf_datasets_script_copies_from_existing_leaf_root(tmp_path: P
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+    assert "Preparing datasets" in completed.stderr
     assert (tmp_path / "raw" / "femnist" / "train" / "all_data_0.json").exists()
     assert (tmp_path / "raw" / "sent140" / "train" / "all_data_0.json").exists()
