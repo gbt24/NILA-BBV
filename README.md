@@ -222,6 +222,20 @@ This repository uses `uv` to manage project dependencies. After entering the rep
 uv sync --extra dev
 ```
 
+PyTorch is intentionally not pinned in `pyproject.toml`. Install it separately so you can choose the correct runtime for your machine.
+
+For CUDA 12.8, install the official `cu128` wheels:
+
+```bash
+uv pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision
+```
+
+For CPU-only environments:
+
+```bash
+uv pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+```
+
 If your machine does not have `uv` installed, you can install it first:
 
 ```bash
@@ -235,6 +249,8 @@ If you want to verify that PyTorch correctly recognizes CUDA:
 ```bash
 python -c "import torch; print(torch.cuda.is_available())"
 ```
+
+If `import torch` fails with missing `libcudnn.so` or other CUDA runtime libraries, your PyTorch runtime does not match the server driver/runtime setup. Reinstall the correct wheel variant first.
 
 ## 6. Data Preparation
 

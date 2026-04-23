@@ -222,6 +222,20 @@ conda activate bbv
 uv sync --extra dev
 ```
 
+`pyproject.toml` 里现在**不再固定安装 PyTorch**。这是为了让你根据机器环境单独选择正确的运行时版本。
+
+如果你要使用 CUDA 12.8，请单独安装官方 `cu128` wheel：
+
+```bash
+uv pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision
+```
+
+如果你只想在 CPU 环境运行：
+
+```bash
+uv pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+```
+
 如果你的机器还没有 `uv`，可以先安装：
 
 ```bash
@@ -235,6 +249,8 @@ pip install uv
 ```bash
 python -c "import torch; print(torch.cuda.is_available())"
 ```
+
+如果 `import torch` 时出现 `libcudnn.so` 缺失或其他 CUDA 运行时错误，通常说明你安装的 PyTorch wheel 与服务器上的驱动/运行时环境不匹配，需要先重新安装正确的 wheel 版本。
 
 ## 6. Data Preparation
 
