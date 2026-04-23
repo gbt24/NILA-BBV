@@ -27,7 +27,7 @@ def run_leaf_preprocess(leaf_root: Path, dataset_name: str) -> None:
 
 def clean_leaf_dataset_cache(leaf_root: Path, dataset_name: str) -> None:
     dataset_data_dir = leaf_root / "data" / dataset_name / "data"
-    for child_name in ["train", "test", "sampled_data", "rem_user_data", "all_data", "intermediate", "raw_data"]:
+    for child_name in ["train", "test", "sampled_data", "rem_user_data", "all_data", "intermediate"]:
         child = dataset_data_dir / child_name
         if child.exists():
             shutil.rmtree(child)
