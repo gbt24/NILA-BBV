@@ -2,17 +2,17 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-A research codebase for model ownership verification in federated learning, targeting the problem defined in `deep-research-report-2.md`: designing a copyright verification method that simultaneously addresses `non-IID adaptability`, `low ambiguity`, `black-box verifiability`, and `lightweight provenance` under non-IID federated training scenarios.
+本仓库实现一个面向联邦学习模型版权保护的研究型代码框架，目标问题来自 `deep-research-report-2.md`：在非 IID 联邦训练场景下，设计一种同时兼顾 `non-IID adaptability`、`low ambiguity`、`black-box verifiability` 与 `lightweight provenance` 的版权验证方法。
 
-This project focuses on the following research threads:
+项目当前聚焦如下研究主线：
 
-- Adaptive watermark allocation for non-IID federated training
-- Multi-bit codebook-based black-box copyright verification
-- Low-ambiguity ownership judgment using positive and negative evidence
-- Margin-style competitor comparison addressing false-claim risks
-- Support for real attacks, statistical calibration, privacy leakage evaluation, and report export
+- 面向非 IID 联邦训练的自适应 watermark 分配
+- 基于多比特码本的黑盒版权验证
+- 结合正证据与负证据的低歧义归属判决
+- 面向 false-claim 风险的 margin 式竞争 owner 比较
+- 支持真实攻击、统计校准、隐私泄漏评估与报告导出
 
-## Table of Contents
+## 目录
 
 - [1. Research Overview](#1-research-overview)
 - [2. Method Sketch](#2-method-sketch)
@@ -31,59 +31,59 @@ This project focuses on the following research threads:
 
 ### 1.1 Problem Setting
 
-This project addresses the following research question:
+本项目针对如下研究问题：
 
-> In federated learning, how to build a method that can adapt to non-IID data heterogeneity, reduce false positives and ownership ambiguity, and enable remote copyright verification under black-box query conditions?
+> 在联邦学习中，如何构建一种既能适应 non-IID 数据异质性、又能降低误报与归属歧义，并且能够在黑盒查询条件下完成远程版权验证的方法？
 
-Unlike traditional black-box watermarking that focuses only on single trigger hit rates, we emphasize:
+与传统只关注单一 trigger 命中率的 black-box watermark 不同，这里强调的是：
 
-- Not just "can it be verified successfully," but "can it be verified with low ambiguity"
-- Not just "effective for owner models," but "should not misclassify non-owner models"
-- Not just "still triggerable after attacks," but "maintains statistically interpretable owner score / margin / AUC after attacks"
+- 不只是"能不能验证成功"，而是"能不能低歧义地验证成功"
+- 不只是"对 owner 模型有效"，而是"对非 owner 模型不应误判"
+- 不只是"攻击后还能触发"，而是"攻击后仍能维持可统计解释的 owner score / margin / AUC"
 
 ### 1.2 Research Goals
 
-This repository is organized around five research goals proposed in `deep-research-report-2.md`:
+本仓库围绕 `deep-research-report-2.md` 中提出的五个研究目标展开：
 
-- **H1**: Adaptive watermark allocation outperforms uniform allocation
-- **H2**: Multi-bit codebook + negative evidence + margin decision reduces FPR and ambiguity
-- **H3**: Stable black-box verification under hard-label or low-dimensional output APIs
-- **H4**: Robustness against fine-tuning, pruning, quantization, distillation, and extraction attacks
-- **H5**: Control system overhead without significantly increasing privacy leakage risks
+- `H1`: 自适应 watermark 分配优于均匀分配
+- `H2`: 多比特码本 + 负证据 + margin 判决降低 FPR 与 ambiguity
+- `H3`: 在 hard-label 或低维输出 API 下仍可稳定完成黑盒验证
+- `H4`: 在 fine-tuning、pruning、quantization、distillation、extraction 后仍保持鲁棒性
+- `H5`: 在控制系统开销的同时，不显著增加隐私泄漏风险
 
 ### 1.3 Recommended Research Route
 
-According to the research plan, the most suitable route for the first round of experiments is:
+根据研究计划，首轮实验最适合的路线是：
 
-- Visual main datasets: `CIFAR-10`, `CIFAR-100`, `FEMNIST`
-- Text supplement: `Sent140`
-- Priority: main experiments, ablation, false-claim, robustness, privacy evaluation
-- Not pursued initially: heavy cryptographic protocols, blockchain provenance, diffusion models, multimodal FL
+- 视觉主集：`CIFAR-10`, `CIFAR-100`, `FEMNIST`
+- 文本补充：`Sent140`
+- 优先完成：主实验、消融、false-claim、robustness、privacy evaluation
+- 暂不追求：重密码学协议、区块链存证、扩散模型、多模态 FL
 
 ## 2. Method Sketch
 
-The method prototype corresponding to this repository can be summarized as `NILA-BBV`:
+本仓库对应的方法原型可以概括为 `NILA-BBV`：
 
 `Non-IID Low-Ambiguity Adaptive Black-Box Verification`
 
 ### 2.1 Core Modules
 
-The method consists of five core modules:
+方法由五个核心模块组成。
 
-1. **Codebook-Based Queries**
-   Generate multi-bit codebooks for owners and construct black-box query sets accordingly, rather than relying on a single trigger.
+1. `Codebook-Based Queries`
+   为 owner 生成多比特码本，并据此构造 black-box 查询集合，而不是只依赖单个 trigger。
 
-2. **Negative Evidence**
-   Construct negative evidence sets in addition to positive queries to suppress false triggers and false claims.
+2. `Negative Evidence`
+   除正证据查询外，再构造负证据集，用于抑制误触发与 false claim。
 
-3. **Adaptive Allocation**
-   Adaptively allocate watermark budget based on client statistical features and watermark adaptability, rather than uniform allocation.
+3. `Adaptive Allocation`
+   根据客户端统计特征与 watermark 适配度，对 watermark 预算进行自适应分配，而不是均匀分配。
 
-4. **Margin-Based Black-Box Decision**
-   During verification, compute not only the owner score but also compare competitor owner scores, reporting margin and ambiguity.
+4. `Margin-Based Black-Box Decision`
+   验证时不仅计算 owner score，还比较竞争 owner 的分数，并报告 margin 与 ambiguity。
 
-5. **Lightweight Commitment**
-   Store owner identifier, seed, codebook hash, timestamp, and training configuration summary as lightweight provenance records.
+5. `Lightweight Commitment`
+   保存 owner 标识、seed、码本哈希、时间戳、训练配置摘要，作为轻量 provenance 记录。
 
 ### 2.2 Pipeline Overview
 
@@ -109,53 +109,53 @@ flowchart LR
 
 ### 3.1 What Is Implemented
 
-The current repository covers the following experimental capabilities:
+当前仓库已经覆盖以下实验能力：
 
-- **Dataset Loading**
+- 数据集加载
   - `cifar10`
   - `cifar100`
-  - `femnist` (real LEAF-style natural split)
-  - `sent140` (real LEAF-style natural split)
-  - `shakespeare` configuration entry reserved, but `sent140` is recommended for current focus experiments
+  - `femnist`（真实 LEAF 风格 natural split）
+  - `sent140`（真实 LEAF 风格 natural split）
+  - `shakespeare` 配置入口已保留，但当前重点实验建议使用 `sent140`
 
-- **Federated Training**
-  - Dataset-backed client subsets
-  - Controlled non-IID partitions: `dirichlet`, `shard`, `quantity_skew`, `combined_label_quantity`
-  - Natural partitions for LEAF-style datasets
+- 联邦训练
+  - dataset-backed client subsets
+  - controlled non-IID partitions: `dirichlet`, `shard`, `quantity_skew`, `combined_label_quantity`
+  - natural partitions for LEAF-style datasets
 
-- **Watermark / Verification**
-  - Multi-bit codebooks
-  - Positive/negative evidence queries
-  - Owner score
-  - Competitor scores
-  - Margin decision
-  - Ambiguity flag
-  - Threshold calibration
+- watermark / verification
+  - 多比特码本
+  - 正证据 / 负证据查询
+  - owner score
+  - competitor scores
+  - margin decision
+  - ambiguity flag
+  - threshold calibration
 
-- **Attacks**
+- attacks
   - `finetune`
   - `pruning`
   - `quantization`
   - `distillation`
   - `extraction`
 
-- **Evaluation / Reporting**
-  - False-claim acceptance rate
-  - Ambiguity/FPR/FNR summaries
-  - Privacy leakage AUC
-  - Robustness summaries
-  - Tables, figures, summary markdown export
+- evaluation / reporting
+  - false-claim acceptance rate
+  - ambiguity/FPR/FNR 汇总
+  - privacy leakage AUC
+  - robustness 汇总
+  - 表格、图、summary markdown 导出
 
 ### 3.2 What Is Not the Focus
 
-The current repository does not prioritize the following directions:
+本仓库当前不以如下方向为首要目标：
 
-- Heavy cryptographic attestation protocols
-- Blockchain or decentralized provenance systems
-- Diffusion models and multimodal federated copyright protection
-- Large-scale production system deployment
+- 重密码学举证协议
+- 区块链或去中心化存证系统
+- 扩散模型与多模态联邦版权保护
+- 大规模生产系统部署
 
-If your goal is first-paper reproduction and extension, it is recommended to complete the experimental loop within the current research scope first.
+如果你的目标是第一篇论文复现与扩展，建议先在当前研究范围内完成实验闭环。
 
 ## 4. Project Structure
 
@@ -201,13 +201,13 @@ bbv/
 
 ### 5.1 Python Version
 
-Recommended:
+建议使用：
 
 - `Python 3.11`
 
 ### 5.2 Create a Conda Environment
 
-Example using `conda`:
+下面用 `conda` 举例。
 
 ```bash
 conda create -n bbv python=3.11 -y
@@ -216,13 +216,13 @@ conda activate bbv
 
 ### 5.3 Install Dependencies
 
-This repository uses `uv` to manage project dependencies. After entering the repository root directory, execute:
+本仓库使用 `uv` 管理项目依赖。进入仓库根目录后执行：
 
 ```bash
 uv sync --extra dev
 ```
 
-If your machine does not have `uv` installed, you can install it first:
+如果你的机器还没有 `uv`，可以先安装：
 
 ```bash
 pip install uv
@@ -230,7 +230,7 @@ pip install uv
 
 ### 5.4 Optional GPU Check
 
-If you want to verify that PyTorch correctly recognizes CUDA:
+如果你希望确认 PyTorch 已正确识别 CUDA：
 
 ```bash
 python -c "import torch; print(torch.cuda.is_available())"
@@ -240,15 +240,15 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 ### 6.1 CIFAR Datasets
 
-`CIFAR-10` and `CIFAR-100` can be automatically downloaded during training.
+`CIFAR-10` 和 `CIFAR-100` 可以在训练时自动下载。
 
-Default download directory:
+默认下载目录：
 
 - `data/raw/`
 
 ### 6.2 Prepare LEAF Datasets
 
-To conduct real natural non-IID experiments, prepare LEAF-style data first.
+为了进行真实 natural non-IID 实验，先准备 LEAF 风格数据。
 
 #### Prepare FEMNIST
 
@@ -268,7 +268,7 @@ uv run python scripts/data/prepare_leaf_datasets.py --dataset=sent140
 uv run python scripts/data/prepare_leaf_datasets.py --dataset=all
 ```
 
-Default output layout:
+默认输出布局：
 
 ```text
 data/raw/femnist/train/*.json
@@ -279,20 +279,20 @@ data/raw/sent140/test/*.json
 
 ### 6.3 Dataset Notes
 
-- **FEMNIST**
-  - Real writer-level natural split
-  - Suitable for validating natural non-IID image federated training
+- `FEMNIST`
+  - 真实 writer-level natural split
+  - 适合验证 natural non-IID 图像联邦训练
 
-- **Sent140**
-  - Real user-level natural split
-  - Suitable for supplementing text task results
+- `Sent140`
+  - 真实 user-level natural split
+  - 适合补充文本任务结果
 
-- **CIFAR-10 / CIFAR-100**
-  - Suitable for controlled non-IID partitioning, e.g., Dirichlet, shard, quantity skew
+- `CIFAR-10 / CIFAR-100`
+  - 适合做可控非 IID 分区，例如 Dirichlet、shard、quantity skew
 
 ## 7. Quick Start
 
-This section is used to confirm that code, data, and command chains are working properly.
+这一节用于先确认代码、数据、命令链路都正常。
 
 ### 7.1 Run Smoke Tests
 
@@ -308,7 +308,7 @@ uv run pytest tests/unit tests/integration tests/smoke -q
 
 ### 7.3 Train One Watermarked Model
 
-Example with `CIFAR-10`:
+以 `CIFAR-10` 为例：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py \
@@ -318,7 +318,7 @@ uv run python scripts/train/run_watermark_baseline.py \
   seed=0
 ```
 
-Example with `FEMNIST`:
+以 `FEMNIST` 为例：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py \
@@ -328,7 +328,7 @@ uv run python scripts/train/run_watermark_baseline.py \
   seed=0
 ```
 
-Example with `Sent140`:
+以 `Sent140` 为例：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py \
@@ -357,7 +357,7 @@ uv run python scripts/attacks/run_attack_suite.py \
   seed=0
 ```
 
-You can also change `attack` to:
+你也可以把 `attack` 改为：
 
 - `pruning`
 - `quantization`
@@ -376,28 +376,28 @@ uv run python scripts/report/build_report.py \
 
 ## 8. Full Experiment Workflow
 
-This section provides a complete experimental workflow closer to paper reproduction.
+这一节给出更接近论文复现的完整实验流程。
 
 ### 8.1 Recommended Execution Order
 
-It is recommended to proceed in the following order:
+建议按如下顺序进行：
 
-1. Environment and test validation
-2. Data preparation
-3. Main training experiments
-4. Black-box verification
-5. Attack robustness experiments
-6. False-claim and ablation experiments
-7. Summary table and figure export
+1. 环境与测试验证
+2. 数据准备
+3. 主训练实验
+4. 黑盒验证
+5. 攻击鲁棒性实验
+6. false-claim 与消融实验
+7. 汇总表图导出
 
 ### 8.2 Main 3-Seed Runs
 
-The research plan recommends running at least 3 random seeds. Current default main matrix configuration:
+研究计划建议至少运行 3 个随机种子。当前默认主矩阵配置：
 
 - `seeds: [0, 1, 2]`
 - report studies: `main`, `ablation`, `false_claim`, `robustness`
 
-You can run manually in sequence:
+你可以手动依次运行：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py dataset=cifar10 allocation=adaptive owner.id=owner0 seed=0
@@ -405,7 +405,7 @@ uv run python scripts/train/run_watermark_baseline.py dataset=cifar10 allocation
 uv run python scripts/train/run_watermark_baseline.py dataset=cifar10 allocation=adaptive owner.id=owner0 seed=2
 ```
 
-If you are studying `FEMNIST`:
+如果你研究 `FEMNIST`：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py dataset=femnist allocation=adaptive owner.id=owner0 seed=0
@@ -413,7 +413,7 @@ uv run python scripts/train/run_watermark_baseline.py dataset=femnist allocation
 uv run python scripts/train/run_watermark_baseline.py dataset=femnist allocation=adaptive owner.id=owner0 seed=2
 ```
 
-If you are studying `Sent140`:
+如果你研究 `Sent140`：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py dataset=sent140 allocation=adaptive owner.id=owner0 seed=0
@@ -423,14 +423,14 @@ uv run python scripts/train/run_watermark_baseline.py dataset=sent140 allocation
 
 ### 8.3 Non-IID Partition Studies on CIFAR
 
-For `CIFAR-10 / CIFAR-100`, you can adjust partition parameters in the configuration, such as:
+对于 `CIFAR-10 / CIFAR-100`，你可以调整配置中的分区参数，例如：
 
 - `partition_type=dirichlet`
 - `partition_type=shard`
 - `partition_type=quantity_skew`
 - `partition_type=combined_label_quantity`
 
-Example:
+示例：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py \
@@ -442,7 +442,7 @@ uv run python scripts/train/run_watermark_baseline.py \
   seed=0
 ```
 
-Quantity skew example:
+数量偏斜示例：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py \
@@ -454,7 +454,7 @@ uv run python scripts/train/run_watermark_baseline.py \
   seed=0
 ```
 
-Combined skew example:
+联合偏斜示例：
 
 ```bash
 uv run python scripts/train/run_watermark_baseline.py \
@@ -469,7 +469,7 @@ uv run python scripts/train/run_watermark_baseline.py \
 
 ### 8.4 Verification Studies
 
-The verification stage recommends at least focusing on the following variables:
+验证阶段建议至少关注以下变量：
 
 - `decision_threshold`
 - `margin`
@@ -477,7 +477,7 @@ The verification stage recommends at least focusing on the following variables:
 - `hard_label_only`
 - `query_budget`
 
-Hard-label-only verification example:
+hard-label-only 验证示例：
 
 ```bash
 uv run python scripts/eval/run_verification.py \
@@ -489,7 +489,7 @@ uv run python scripts/eval/run_verification.py \
   seed=0
 ```
 
-Example with competitor owners:
+带竞争 owner 的示例：
 
 ```bash
 uv run python scripts/eval/run_verification.py \
@@ -502,7 +502,7 @@ uv run python scripts/eval/run_verification.py \
 
 ### 8.5 Robustness Studies
 
-Run the 5 types of attacks separately:
+分别运行 5 类攻击：
 
 ```bash
 uv run python scripts/attacks/run_attack_suite.py attack=finetune dataset=cifar10 seed=0
@@ -512,7 +512,7 @@ uv run python scripts/attacks/run_attack_suite.py attack=distillation dataset=ci
 uv run python scripts/attacks/run_attack_suite.py attack=extraction dataset=cifar10 seed=0
 ```
 
-After completion, export the robustness report:
+完成后，再导出 robustness 报告：
 
 ```bash
 uv run python scripts/report/build_report.py \
@@ -524,14 +524,14 @@ uv run python scripts/report/build_report.py \
 
 ### 8.6 False-Claim and Ablation Studies
 
-The research plan specifically emphasizes false-claim risks, so it is recommended to retain:
+研究计划特别强调 false-claim 风险，因此建议保留：
 
 - owner claim
 - false claim
-- competitor owner score comparison
-- ambiguity / margin distribution
+- 竞争 owner 分数对比
+- ambiguity / margin 分布
 
-Recommended studies to export:
+建议导出以下 study：
 
 ```bash
 uv run python scripts/report/build_report.py dataset=cifar10 study=main outputs_dir=outputs/runs attacks_dir=outputs/attacks
@@ -542,14 +542,14 @@ uv run python scripts/report/build_report.py dataset=cifar10 study=robustness ou
 
 ### 8.7 Recommended Minimal Paper-Grade Matrix
 
-If your goal is to complete a submission-ready experimental matrix first, the minimum recommended includes:
+如果你的目标是先完成一版可投稿的实验矩阵，建议最少包含：
 
-- Main datasets: `CIFAR-10`, `FEMNIST`
-- Extension datasets: `CIFAR-100` or `Sent140`
-- At least `3 seeds` per group
-- Main experiments + false-claim + robustness + privacy
+- 主数据集：`CIFAR-10`, `FEMNIST`
+- 扩展数据集：`CIFAR-100` 或 `Sent140`
+- 每组至少 `3 seeds`
+- 主实验 + false-claim + robustness + privacy
 
-A realistically executable minimal matrix is:
+一个现实可执行的最小矩阵是：
 
 - `CIFAR-10`: main + robustness + ablation
 - `FEMNIST`: main + robustness
@@ -559,11 +559,11 @@ A realistically executable minimal matrix is:
 
 ### 9.1 Training Runs
 
-Training outputs are located at:
+训练输出位于：
 
 - `outputs/runs/<run-id>/`
 
-Typical files include:
+典型文件包括：
 
 - `metrics.json`
 - `run_metadata.json`
@@ -578,11 +578,11 @@ Typical files include:
 
 ### 9.2 Attack Runs
 
-Attack outputs are located at:
+攻击输出位于：
 
 - `outputs/attacks/<attack-run-id>/`
 
-Typical files include:
+典型文件包括：
 
 - `attacked_checkpoint.pt`
 - `attack_log.json`
@@ -590,13 +590,13 @@ Typical files include:
 
 ### 9.3 Report Bundle
 
-After exporting reports, the following will be generated:
+导出报告后会生成：
 
 - `outputs/tables/`
 - `outputs/figures/`
 - `outputs/summaries/`
 
-Common files:
+常见文件：
 
 - `*-main-results.csv`
 - `*-ablation-results.csv`
@@ -609,7 +609,7 @@ Common files:
 
 ## 10. Metrics and Research Questions
 
-This project recommends at least focusing on the following metrics.
+本项目建议至少关注以下指标。
 
 ### 10.1 Verification Metrics
 
@@ -637,20 +637,20 @@ This project recommends at least focusing on the following metrics.
 
 ### 10.4 How They Map to H1-H5
 
-- **H1**
-  - Check whether adaptive allocation improves acceptance rate or reduces FNR
+- `H1`
+  - 看 adaptive allocation 是否提升 acceptance rate 或降低 FNR
 
-- **H2**
-  - Check ambiguity rate, FPR, false_claim_acceptance_rate
+- `H2`
+  - 看 ambiguity rate、FPR、false_claim_acceptance_rate
 
-- **H3**
-  - Check acceptance stability under hard-label-only conditions
+- `H3`
+  - 看 hard-label-only 条件下的 acceptance stability
 
-- **H4**
-  - Check robustness_acceptance_rate and post-attack owner score
+- `H4`
+  - 看 robustness_acceptance_rate 与攻击后 owner score
 
-- **H5**
-  - Check privacy_leakage_auc and training cost/experiment overhead
+- `H5`
+  - 看 privacy_leakage_auc 与训练成本/实验开销
 
 ## 11. Testing
 
@@ -682,15 +682,15 @@ uv run pytest tests/unit tests/integration tests/smoke -q
 
 ### 12.1 Current Hardware Assumption
 
-According to the research plan, the default hardware budget for the first round of experiments is approximately:
+根据研究计划，首轮实验默认硬件预算约为：
 
-- `1-2` consumer-grade GPUs with `24GB` VRAM
+- `1-2` 张 `24GB` 级消费级 GPU
 
-If you only have CPU, you can still complete smoke tests, unit/integration tests, and small-scale functional verification, but formal main experiments will be significantly slower.
+如果你只有 CPU，也可以先完成 smoke test、unit/integration test 和小规模功能验证，但正式主实验会明显更慢。
 
 ### 12.2 Reproducibility Suggestions
 
-It is recommended to fix the following in formal experiments:
+建议在正式实验中固定：
 
 - `seed`
 - `dataset.partition_type`
@@ -700,7 +700,7 @@ It is recommended to fix the following in formal experiments:
 - `verification.margin`
 - `verification.decision_threshold`
 
-Also retain:
+同时保留：
 
 - `run_metadata.json`
 - `owner_commitment.json`
@@ -711,7 +711,7 @@ Also retain:
 
 #### LEAF dataset not found
 
-If the error indicates that `data/raw/femnist/...` or `data/raw/sent140/...` cannot be found, run first:
+如果报错提示找不到 `data/raw/femnist/...` 或 `data/raw/sent140/...`，先运行：
 
 ```bash
 uv run python scripts/data/prepare_leaf_datasets.py --dataset=all
@@ -719,22 +719,22 @@ uv run python scripts/data/prepare_leaf_datasets.py --dataset=all
 
 #### No verification summary generated
 
-First confirm that the training run directory contains:
+先确认训练 run 目录下存在：
 
 - `owner_artifacts.json`
-- `best_checkpoint.pt` or `checkpoint.pt`
+- `best_checkpoint.pt` 或 `checkpoint.pt`
 
-Then run the verification command.
+再运行验证命令。
 
 #### Attack run exists but no post-attack verification
 
-Please confirm that the post-attack verification process is also triggered after the attack command runs, or check before re-running report export:
+请确认攻击命令运行后，后续验证流程也被触发，或者重新运行报告导出前先检查：
 
 - `outputs/attacks/<attack-run-id>/verification_after_attack.json`
 
 ### 12.4 Suggested First Reproduction Path
 
-If you are using this repository for the first time, it is recommended to follow this order:
+如果你第一次使用本仓库，建议按下面顺序操作：
 
 1. `conda create -n bbv python=3.11 -y`
 2. `conda activate bbv`
@@ -747,4 +747,4 @@ If you are using this repository for the first time, it is recommended to follow
 9. `uv run python scripts/attacks/run_attack_suite.py attack=finetune dataset=femnist seed=0`
 10. `uv run python scripts/report/build_report.py dataset=femnist study=main outputs_dir=outputs/runs attacks_dir=outputs/attacks`
 
-After completing this pipeline, expand to `CIFAR-10 / CIFAR-100 / Sent140` and the multi-seed main experiment matrix.
+完成这条链路后，再扩展到 `CIFAR-10 / CIFAR-100 / Sent140` 和多 seed 主实验矩阵。
