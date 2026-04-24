@@ -132,8 +132,10 @@ def _train_one_client(
     local_epochs: int,
     batch_size: int,
     watermark_hook: WatermarkHook | None = None,
+    device: torch.device = torch.device("cpu"),
 ) -> tuple[dict[str, torch.Tensor], dict[str, float]]:
     local_model = deepcopy(global_model)
+    local_model.to(device)
     local_model.train()
     optimizer = torch.optim.SGD(local_model.parameters(), lr=learning_rate)
     data_loader = DataLoader(
@@ -147,6 +149,8 @@ def _train_one_client(
     running_total_losses: list[float] = []
     for _ in range(local_epochs):
         for features, labels in data_loader:
+            features = features.to(device)
+            labels = labels.to(device)
             optimizer.zero_grad()
             logits = local_model(features)
             task_loss = F.cross_entropy(logits, labels)
@@ -320,8 +324,10 @@ def _compute_client_allocation_stats(
     batch_size: int,
     num_classes: int,
     watermark_hook: WatermarkHook | None,
+    device: torch.device,
 ) -> object:
     stats_model = deepcopy(model)
+    stats_model.to(device)
     stats_model.train()
     data_loader = DataLoader(client.dataset.dataset, batch_size=batch_size, shuffle=False)
     feature_batches: list[torch.Tensor] = []
@@ -329,8 +335,8 @@ def _compute_client_allocation_stats(
     for features, labels in data_loader:
         feature_batches.append(features)
         label_batches.append(labels)
-    features = torch.cat(feature_batches, dim=0)
-    labels = torch.cat(label_batches, dim=0)
+    features = torch.cat(feature_batches, dim=0).to(device)
+    labels = torch.cat(label_batches, dim=0).to(device)
 
     stats_model.zero_grad()
     main_logits = stats_model(features)
@@ -501,6 +507,19 @@ def _infer_input_shape(dataset: object) -> tuple[int, ...]:
     return tuple(int(dimension) for dimension in sample.shape)
 
 
+def _resolve_training_device(device: str) -> torch.device:
+    normalized = device.lower()
+    if normalized == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if normalized == "cpu":
+        return torch.device("cpu")
+    if normalized == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA requested but torch.cuda.is_available() is False")
+        return torch.device("cuda")
+    raise ValueError("device must be one of: auto, cpu, cuda")
+
+
 def train_federated(
     *,
     output_root: Path,
@@ -524,6 +543,7 @@ def train_federated(
     allocation_budget_ratio: float = 0.3,
     allocation_base_loss_weight: float = 0.1,
     progress_enabled: bool = True,
+    device: str = "auto",
 ) -> FedAvgResult:
     _validate_inputs(
         num_clients=num_clients,
@@ -537,6 +557,7 @@ def train_federated(
         allocation_base_loss_weight=allocation_base_loss_weight,
     )
     torch.manual_seed(seed)
+    train_device = _resolve_training_device(device)
     run_dir = _create_run_dir(Path(output_root))
     metrics_path = run_dir / "metrics.json"
     metadata_path = run_dir / "run_metadata.json"
@@ -558,6 +579,8 @@ def train_federated(
     )
     input_shape = _infer_input_shape(loaded_dataset.dataset)
     val_features, val_labels = _build_evaluation_tensors(validation_dataset.dataset, 64)
+    val_features = val_features.to(train_device)
+    val_labels = val_labels.to(train_device)
     labels = [int(label) for label in getattr(loaded_dataset.dataset, "targets")]
     dataset_metadata = getattr(loaded_dataset, "metadata", {}) or {}
     natural_client_indices = dataset_metadata.get("natural_client_indices")
@@ -643,6 +666,7 @@ def train_federated(
         seed=seed,
         input_shape=input_shape,
     )
+    server.model.to(train_device)
 
     selected_per_round = max(1, int(round(num_clients * participation_rate)))
     round_metrics: list[dict[str, float | int]] = []
@@ -674,6 +698,7 @@ def train_federated(
                     batch_size=batch_size,
                     num_classes=num_classes,
                     watermark_hook=watermark_hook,
+                    device=train_device,
                 )
                 for client in selected_clients
             ]
@@ -748,6 +773,7 @@ def train_federated(
                 local_epochs=local_epochs,
                 batch_size=batch_size,
                 watermark_hook=client_watermark_hook,
+                device=train_device,
             )
             local_states.append(state_dict)
             local_loss_summaries.append(loss_value)
@@ -850,6 +876,7 @@ def train_federated(
                 "budget_ratio": allocation_budget_ratio,
                 "base_loss_weight": allocation_base_loss_weight,
             },
+            "device": train_device.type,
         },
     )
 

@@ -22,9 +22,11 @@ def run_finetune_attack(
     local_epochs: int,
     batch_size: int,
     max_batches: int,
+    device: torch.device,
 ) -> tuple[dict[str, torch.Tensor], dict[str, float | str]]:
     torch.manual_seed(seed)
     model = build_model(model_name, num_classes=num_classes, input_shape=input_shape)
+    model.to(device)
     try:
         model.load_state_dict(state_dict)
     except RuntimeError:
@@ -56,6 +58,8 @@ def run_finetune_attack(
     last_loss = 0.0
     for _ in range(local_epochs):
         for features, labels in data_loader:
+            features = features.to(device)
+            labels = labels.to(device)
             optimizer.zero_grad()
             logits = model(features)
             loss = F.cross_entropy(logits, labels)
@@ -68,7 +72,7 @@ def run_finetune_attack(
         if num_optimizer_steps >= max_batches:
             break
 
-    attacked = {key: value.detach().clone() for key, value in model.state_dict().items()}
+    attacked = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
     return attacked, {
         "attack_name": "finetune",
         "learning_rate": learning_rate,

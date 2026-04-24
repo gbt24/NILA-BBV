@@ -11,6 +11,7 @@ defaults:
 
 seed: 0
 output_root: outputs/runs
+device: auto
 
 hydra:
   run:

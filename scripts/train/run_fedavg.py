@@ -30,6 +30,7 @@ def main(cfg: DictConfig) -> None:
         shards_per_client=int(cfg.dataset.shards_per_client),
         quantity_sigma=float(cfg.dataset.quantity_sigma),
         progress_enabled=bool(cfg.progress.enabled),
+        device=str(cfg.device),
     )
     print(f"FedAvg run directory: {Path(result.run_dir)}")
 

@@ -71,6 +71,7 @@ def main(cfg: DictConfig) -> None:
         hard_label_only=bool(cfg.verification.get("hard_label_only", True)),
         batch_size=int(cfg.verification.get("batch_size", 16)),
         expected_owner_id=str(cfg.owner.id),
+        device=str(cfg.device),
     )
     print(f"Verification run directory: {run_dir}")
     print(f"Owner score: {summary['owner_score']}")

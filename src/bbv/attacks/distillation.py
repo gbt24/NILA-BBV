@@ -25,10 +25,12 @@ def run_distillation_attack(
     max_batches: int,
     temperature: float,
     teacher_query_mode: str,
+    device: torch.device,
 ) -> tuple[dict[str, torch.Tensor], dict[str, float | str]]:
     torch.manual_seed(seed)
 
     teacher = build_model(model_name, num_classes=num_classes, input_shape=input_shape)
+    teacher.to(device)
     try:
         teacher.load_state_dict(state_dict)
     except RuntimeError:
@@ -51,6 +53,7 @@ def run_distillation_attack(
     teacher.eval()
 
     student = build_model(student_model_name, num_classes=num_classes, input_shape=input_shape)
+    student.to(device)
     student.train()
 
     loaded_dataset = load_dataset(
@@ -67,6 +70,7 @@ def run_distillation_attack(
     temperature = max(float(temperature), 1e-6)
     for _ in range(local_epochs):
         for features, _labels in data_loader:
+            features = features.to(device)
             optimizer.zero_grad()
             with torch.no_grad():
                 teacher_logits = teacher(features)
@@ -89,7 +93,7 @@ def run_distillation_attack(
         if num_student_steps >= max_batches:
             break
 
-    attacked = {key: value.detach().clone() for key, value in student.state_dict().items()}
+    attacked = {key: value.detach().cpu().clone() for key, value in student.state_dict().items()}
     return attacked, {
         "attack_name": "distillation",
         "student_model_name": student_model_name,

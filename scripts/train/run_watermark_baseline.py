@@ -51,6 +51,7 @@ def main(cfg: DictConfig) -> None:
         allocation_budget_ratio=float(cfg.allocation.budget_ratio),
         allocation_base_loss_weight=float(cfg.allocation.base_loss_weight),
         progress_enabled=bool(cfg.progress.enabled),
+        device=str(cfg.device),
     )
     artifacts_path = train_result.run_dir / "owner_artifacts.json"
     artifacts = load_owner_artifacts(artifacts_path)

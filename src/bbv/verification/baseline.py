@@ -18,7 +18,20 @@ from bbv.verification.query import (
 from bbv.watermarking import generate_codebook, load_owner_artifacts
 
 
-def _load_model_from_checkpoint(checkpoint_path: Path) -> torch.nn.Module:
+def _resolve_verification_device(device: str) -> torch.device:
+    normalized = device.lower()
+    if normalized == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if normalized == "cpu":
+        return torch.device("cpu")
+    if normalized == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA requested but torch.cuda.is_available() is False")
+        return torch.device("cuda")
+    raise ValueError("device must be one of: auto, cpu, cuda")
+
+
+def _load_model_from_checkpoint(checkpoint_path: Path, device: torch.device) -> torch.nn.Module:
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     state_dict = checkpoint["model_state"]
     model_name = str(checkpoint.get("model_name", "resnet18"))
@@ -26,6 +39,7 @@ def _load_model_from_checkpoint(checkpoint_path: Path) -> torch.nn.Module:
     input_shape = tuple(checkpoint.get("input_shape", (3, 32, 32)))
     model = build_model(model_name, num_classes=num_classes, input_shape=input_shape)
     model.load_state_dict(state_dict)
+    model.to(device)
     setattr(model, "_bbv_input_shape", input_shape)
     model.eval()
     return model
@@ -143,6 +157,7 @@ def run_verification_from_checkpoint(
     batch_size: int = 16,
     negative_weight: float = 0.2,
     expected_owner_id: str | None = None,
+    device: str = "auto",
 ) -> dict[str, object]:
     if query_budget is not None and query_budget <= 0:
         raise ValueError("query_budget must be greater than 0")
@@ -167,7 +182,8 @@ def run_verification_from_checkpoint(
     neg_queries = [torch.tensor(sample, dtype=torch.float32) for sample in neg_queries_raw]
     negative_codebook = [1 - bit for bit in expected]
 
-    model = _load_model_from_checkpoint(checkpoint_path)
+    verification_device = _resolve_verification_device(device)
+    model = _load_model_from_checkpoint(checkpoint_path, verification_device)
 
     if query_budget is None:
         positive_budget = None

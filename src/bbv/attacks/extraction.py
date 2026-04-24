@@ -25,10 +25,12 @@ def run_extraction_attack(
     batch_size: int,
     query_budget: int,
     teacher_query_mode: str,
+    device: torch.device,
 ) -> tuple[dict[str, torch.Tensor], dict[str, float | str]]:
     torch.manual_seed(seed)
 
     teacher = build_model(model_name, num_classes=num_classes, input_shape=input_shape)
+    teacher.to(device)
     try:
         teacher.load_state_dict(state_dict)
     except RuntimeError:
@@ -52,6 +54,7 @@ def run_extraction_attack(
     teacher.eval()
 
     student = build_model(student_model_name, num_classes=num_classes, input_shape=input_shape)
+    student.to(device)
     student.train()
 
     loaded_dataset = load_dataset(
@@ -74,7 +77,7 @@ def run_extraction_attack(
             remaining = query_budget - queried_examples
             if remaining <= 0:
                 break
-            features = features[:remaining]
+            features = features[:remaining].to(device)
             with torch.no_grad():
                 teacher_logits = teacher(features)
 
@@ -98,7 +101,7 @@ def run_extraction_attack(
         if queried_examples >= query_budget:
             break
 
-    attacked = {key: value.detach().clone() for key, value in student.state_dict().items()}
+    attacked = {key: value.detach().cpu().clone() for key, value in student.state_dict().items()}
     return attacked, {
         "attack_name": "extraction",
         "temperature": temperature,

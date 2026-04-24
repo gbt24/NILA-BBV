@@ -7,6 +7,13 @@ import torch
 from bbv.watermarking.queries import adapt_queries_to_shape
 
 
+def _model_device(model: torch.nn.Module) -> torch.device:
+    try:
+        return next(model.parameters()).device
+    except StopIteration:
+        return torch.device("cpu")
+
+
 def _prepare_queries(
     model: torch.nn.Module,
     queries: list[torch.Tensor],
@@ -28,10 +35,11 @@ def batched_query_model(
     max_queries: int | None = None,
 ) -> list[int]:
     prepared_queries = _prepare_queries(model, queries, max_queries=max_queries)
+    device = _model_device(model)
     predicted_labels: list[int] = []
     with torch.no_grad():
         for start in range(0, len(prepared_queries), batch_size):
-            batch = torch.stack(prepared_queries[start : start + batch_size], dim=0)
+            batch = torch.stack(prepared_queries[start : start + batch_size], dim=0).to(device)
             logits = model(batch)
             predicted_labels.extend(int(label) for label in logits.argmax(dim=1).tolist())
     return predicted_labels
@@ -45,10 +53,11 @@ def batched_query_model_logits(
     max_queries: int | None = None,
 ) -> list[torch.Tensor]:
     prepared_queries = _prepare_queries(model, queries, max_queries=max_queries)
+    device = _model_device(model)
     outputs: list[torch.Tensor] = []
     with torch.no_grad():
         for start in range(0, len(prepared_queries), batch_size):
-            batch = torch.stack(prepared_queries[start : start + batch_size], dim=0)
+            batch = torch.stack(prepared_queries[start : start + batch_size], dim=0).to(device)
             logits = model(batch)
             outputs.extend(row.detach().cpu() for row in logits)
     return outputs

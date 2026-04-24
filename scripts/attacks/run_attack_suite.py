@@ -61,6 +61,7 @@ def main(cfg: DictConfig) -> None:
         seed=int(cfg.seed),
         dataset_name=str(cfg.dataset.name),
         attack_config=attack_config,
+        device=str(cfg.device),
     )
     next(progress_steps)
     if artifacts_path.exists():
@@ -76,6 +77,7 @@ def main(cfg: DictConfig) -> None:
             margin=0.05,
             competitor_owner_ids=competitor_owner_ids,
             seed=int(cfg.seed),
+            device=str(cfg.device),
         )
     print(f"Attack output directory: {result.output_dir}")
     print(f"Attacked checkpoint: {result.attacked_checkpoint}")

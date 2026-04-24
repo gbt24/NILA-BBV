@@ -24,6 +24,19 @@ class AttackResult:
     attack_log: Path
 
 
+def _resolve_attack_device(device: str) -> torch.device:
+    normalized = device.lower()
+    if normalized == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if normalized == "cpu":
+        return torch.device("cpu")
+    if normalized == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA requested but torch.cuda.is_available() is False")
+        return torch.device("cuda")
+    raise ValueError("device must be one of: auto, cpu, cuda")
+
+
 def _attack_state_dict(
     *,
     attack_name: str,
@@ -31,6 +44,7 @@ def _attack_state_dict(
     seed: int,
     dataset_name: str,
     attack_config: dict[str, object] | None = None,
+    device: torch.device = torch.device("cpu"),
 ) -> tuple[dict[str, torch.Tensor], dict[str, float | int | str]]:
     attack_config = attack_config or {}
     state_dict = checkpoint["model_state"]
@@ -46,6 +60,7 @@ def _attack_state_dict(
             local_epochs=int(attack_config.get("local_epochs", 1)),
             batch_size=int(attack_config.get("batch_size", 8)),
             max_batches=int(attack_config.get("max_batches", 4)),
+            device=device,
         )
     if attack_name == "pruning":
         return run_pruning_attack(state_dict=state_dict, seed=seed, ratio=0.2)
@@ -66,6 +81,7 @@ def _attack_state_dict(
             max_batches=int(attack_config.get("max_batches", 4)),
             temperature=float(attack_config.get("temperature", 1.0)),
             teacher_query_mode=str(attack_config.get("teacher_query_mode", "logits")),
+            device=device,
         )
     if attack_name == "extraction":
         return run_extraction_attack(
@@ -82,6 +98,7 @@ def _attack_state_dict(
             batch_size=int(attack_config.get("batch_size", 8)),
             query_budget=int(attack_config.get("query_budget", 32)),
             teacher_query_mode=str(attack_config.get("teacher_query_mode", "hard-label")),
+            device=device,
         )
     raise ValueError(f"unsupported attack: {attack_name}")
 
@@ -94,7 +111,9 @@ def run_attack(
     seed: int,
     dataset_name: str = "cifar10",
     attack_config: dict[str, object] | None = None,
+    device: str = "auto",
 ) -> AttackResult:
+    attack_device = _resolve_attack_device(device)
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     if "model_state" not in checkpoint:
         raise ValueError("checkpoint must contain model_state")
@@ -105,6 +124,7 @@ def run_attack(
         seed=seed,
         dataset_name=dataset_name,
         attack_config=attack_config,
+        device=attack_device,
     )
 
     run_id = f"{attack_name}-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:8]}"
