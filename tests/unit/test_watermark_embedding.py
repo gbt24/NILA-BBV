@@ -71,3 +71,28 @@ def test_verification_recovers_bits_from_parity_buckets() -> None:
     recovered = recover_codeword_from_logits(logits)
 
     assert recovered == [0]
+
+
+def test_train_one_client_drops_singleton_tail_batch_for_batchnorm_models() -> None:
+    features = torch.zeros(33, 3, 32, 32)
+    labels = torch.arange(33) % 2
+    client = FederatedClient(
+        client_id=0,
+        dataset=type("ClientDatasetStub", (), {
+            "client_id": 0,
+            "dataset": TensorDataset(features, labels),
+            "label_histogram": {"0": 17, "1": 16},
+        })(),
+        labels=labels,
+    )
+    server = build_server(model_name="resnet18", num_classes=2, seed=0)
+
+    _, losses = _train_one_client(
+        global_model=server.model,
+        client=client,
+        learning_rate=0.05,
+        local_epochs=1,
+        batch_size=32,
+    )
+
+    assert losses["task_loss"] >= 0.0

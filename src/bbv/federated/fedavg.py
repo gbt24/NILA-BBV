@@ -138,10 +138,14 @@ def _train_one_client(
     local_model.to(device)
     local_model.train()
     optimizer = torch.optim.SGD(local_model.parameters(), lr=learning_rate)
+    client_size = len(client.dataset.dataset)
     data_loader = DataLoader(
         client.dataset.dataset,
         batch_size=batch_size,
         shuffle=True,
+        # Avoid BatchNorm crashes when a client's final mini-batch would contain
+        # exactly one sample under quantity-skewed client sizes.
+        drop_last=client_size % batch_size == 1,
     )
 
     running_task_losses: list[float] = []
