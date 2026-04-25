@@ -83,3 +83,40 @@ def test_summary_contains_hypothesis_verdicts(tmp_path: Path) -> None:
 
     assert "H1" in summary.hypothesis_verdicts
     assert "H5" in summary.hypothesis_verdicts
+
+
+def test_summarize_outputs_accepts_seedmatched_competitor_verification_files(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "run-a"
+    _write_json(
+        run_dir / "verification_with_competitors_logits_seedmatched.json",
+        {
+            "owner_id": "owner0",
+            "owner_score": 0.81,
+            "decision": True,
+            "threshold": 0.5,
+            "margin_value": 0.31,
+            "competitor_scores": {"owner1": 0.2, "owner2": 0.5},
+            "ambiguity_flag": False,
+        },
+    )
+    _write_json(run_dir / "run_metadata.json", {"allocation": {"enabled": True}, "seed": 0})
+
+    summary = summarize_outputs(results_root=tmp_path / "runs", attacks_root=None)
+
+    assert len(summary.main_rows) == 1
+    assert summary.main_rows[0]["owner_score"] == 0.81
+    assert summary.ablation_rows[0]["allocation_enabled"] is True
+
+
+def test_summarize_outputs_recurses_into_nested_attack_directories(tmp_path: Path) -> None:
+    attack_dir = tmp_path / "attacks" / "cifar10-robustness-seed0" / "finetune-run-1"
+    _write_json(attack_dir / "attack_log.json", {"attack": "finetune"})
+    _write_json(
+        attack_dir / "verification_after_attack.json",
+        {"owner_score": 0.44, "decision": False},
+    )
+
+    summary = summarize_outputs(results_root=tmp_path / "runs", attacks_root=tmp_path / "attacks")
+
+    assert len(summary.robustness_rows) == 1
+    assert summary.robustness_rows[0]["attack"] == "finetune"

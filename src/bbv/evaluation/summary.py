@@ -62,6 +62,19 @@ def _select_columns(row: dict[str, object], columns: tuple[str, ...]) -> dict[st
     return {column: row.get(column, "") for column in columns}
 
 
+def _find_verification_summary_path(run_dir: Path) -> Path | None:
+    for name in (
+        "verification_with_competitors_logits_seedmatched.json",
+        "verification_with_competitors_logits.json",
+        "verification_with_competitors.json",
+        "verification_margin_summary.json",
+    ):
+        candidate = run_dir / name
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def _build_hypothesis_verdicts(metrics: dict[str, object]) -> dict[str, dict[str, str]]:
     acceptance_rate = _safe_float(metrics.get("acceptance_rate"))
     ambiguity_rate = _safe_float(metrics.get("ambiguity_rate"), 1.0)
@@ -111,15 +124,15 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
     results_root = Path(results_root)
     main_rows: list[dict[str, object]] = []
     ablation_rows: list[dict[str, object]] = []
+    privacy_stats: list[dict[str, float | int]] = []
 
     if results_root.exists():
         run_dirs = sorted(path for path in results_root.iterdir() if path.is_dir())
-        if (results_root / "verification_margin_summary.json").exists():
+        if _find_verification_summary_path(results_root) is not None:
             run_dirs = [results_root] + run_dirs
-        privacy_stats: list[dict[str, float | int]] = []
         for run_dir in run_dirs:
-            summary_path = run_dir / "verification_margin_summary.json"
-            if not summary_path.exists():
+            summary_path = _find_verification_summary_path(run_dir)
+            if summary_path is None:
                 continue
             verification = _load_json(summary_path)
             metadata = _load_json(run_dir / "run_metadata.json") if (run_dir / "run_metadata.json").exists() else {}
@@ -179,7 +192,11 @@ def summarize_outputs(results_root: Path, attacks_root: Path | None = None) -> E
     if attacks_root is not None:
         attacks_root = Path(attacks_root)
         if attacks_root.exists():
-            attack_dirs = sorted(path for path in attacks_root.iterdir() if path.is_dir())
+            attack_dirs = sorted(
+                path.parent
+                for path in attacks_root.rglob("verification_after_attack.json")
+                if (path.parent / "attack_log.json").exists()
+            )
             for attack_dir in attack_dirs:
                 attack_log_path = attack_dir / "attack_log.json"
                 verification_path = attack_dir / "verification_after_attack.json"
