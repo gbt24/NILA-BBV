@@ -59,7 +59,7 @@ class FedAvgResult:
 
 def build_model_input_shape(dataset_name: str) -> tuple[int, ...]:
     normalized_name = dataset_name.lower()
-    if normalized_name not in {"cifar10", "cifar100", "femnist", "shakespeare", "sent140"}:
+    if normalized_name not in {"cifar10", "cifar100", "femnist", "mnist", "shakespeare", "sent140"}:
         raise ValueError(f"unsupported dataset: {dataset_name}")
     if normalized_name in {"sent140", "shakespeare"}:
         return (32,)

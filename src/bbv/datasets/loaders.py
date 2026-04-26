@@ -24,6 +24,7 @@ class LoadedDataset:
 _VISION_DATASETS = {
     "cifar10": "CIFAR10",
     "cifar100": "CIFAR100",
+    "mnist": "MNIST",
 }
 
 _LEAF_DATASETS = {"femnist", "shakespeare", "sent140"}
@@ -60,7 +61,7 @@ def load_dataset(
     if normalized_name not in _VISION_DATASETS:
         raise ValueError(f"unsupported dataset: {name}")
 
-    transform = build_image_transform(train=train)
+    transform = build_image_transform(train=train, dataset_name=normalized_name)
     dataset_cls = getattr(datasets, _VISION_DATASETS[normalized_name])
     try:
         dataset = dataset_cls(
