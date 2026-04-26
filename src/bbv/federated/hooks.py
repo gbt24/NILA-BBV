@@ -4,7 +4,11 @@ from dataclasses import InitVar, dataclass, field
 
 import torch
 
-from bbv.watermarking.codebook import generate_codebook
+from bbv.watermarking.codebook import (
+    generate_codebook,
+    generate_hadamard_codebook,
+    generate_single_trigger_codebook,
+)
 from bbv.watermarking.queries import adapt_queries_to_shape, build_negative_queries, build_positive_queries
 
 
@@ -17,13 +21,22 @@ class WatermarkHook:
     negative_queries: list[torch.Tensor] = field(init=False)
     code_length: InitVar[int]
     seed: InitVar[int]
+    codebook_type: InitVar[str] = "multi-bit"
 
-    def __post_init__(self, code_length: int, seed: int) -> None:
-        codebook = generate_codebook(
-            owner_id=self.owner_id,
-            code_length=code_length,
-            seed=seed,
-        )
+    def __post_init__(
+        self, code_length: int, seed: int, codebook_type: str = "multi-bit"
+    ) -> None:
+        if codebook_type == "single-trigger":
+            codebook = generate_single_trigger_codebook(code_length)
+        elif codebook_type == "hadamard":
+            owner_index = sum(ord(ch) for ch in self.owner_id) % code_length
+            codebook = generate_hadamard_codebook(owner_index, code_length)
+        else:
+            codebook = generate_codebook(
+                owner_id=self.owner_id,
+                code_length=code_length,
+                seed=seed,
+            )
         object.__setattr__(self, "codebook", codebook)
         object.__setattr__(
             self,

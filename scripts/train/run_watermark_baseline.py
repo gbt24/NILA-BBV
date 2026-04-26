@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 
 import hydra
@@ -15,6 +17,7 @@ from bbv.watermarking import (
     load_owner_artifacts,
     save_commitment_record,
 )
+from bbv.utils.io import write_json
 
 
 @hydra.main(
@@ -23,14 +26,30 @@ from bbv.watermarking import (
     config_name="watermark_baseline",
 )
 def main(cfg: DictConfig) -> None:
+    codebook_type = str(cfg.watermarking.get("codebook_type", "multi-bit"))
     watermark_hook = WatermarkHook(
         owner_id=str(cfg.owner.id),
         code_length=int(cfg.watermarking.code_length),
         wm_weight=float(cfg.watermarking.wm_weight),
         seed=int(cfg.seed),
+        codebook_type=codebook_type,
     )
+    output_dir = Path(cfg.output_root)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pre_commitment_path = output_dir / f"pre_training_commitment_seed{int(cfg.seed)}.json"
+    write_json(pre_commitment_path, {
+        "commitment_hash": hashlib.sha256(
+            "".join(str(b) for b in watermark_hook.codebook).encode("utf-8")
+        ).hexdigest(),
+        "owner_id": str(cfg.owner.id),
+        "seed": int(cfg.seed),
+        "code_length": int(cfg.watermarking.code_length),
+        "codebook_type": codebook_type,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    })
+
     train_result = train_federated(
-        output_root=Path(cfg.output_root),
+        output_root=output_dir,
         seed=int(cfg.seed),
         dataset_name=str(cfg.dataset.name),
         model_name=str(cfg.dataset.get("model_name", cfg.model.name)),
@@ -56,9 +75,8 @@ def main(cfg: DictConfig) -> None:
     artifacts_path = train_result.run_dir / "owner_artifacts.json"
     artifacts = load_owner_artifacts(artifacts_path)
     wm_train_config = dict(artifacts.get("wm_train_config", {}))
-    commitment_path = train_result.run_dir / "owner_commitment.json"
     save_commitment_record(
-        commitment_path,
+        train_result.run_dir / "owner_commitment.json",
         build_commitment_record(
             owner_id=str(cfg.owner.id),
             seed=int(cfg.seed),

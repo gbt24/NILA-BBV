@@ -1,0 +1,4 @@
+name: hadamard
+code_length: 64
+wm_weight: 0.2
+codebook_type: hadamard
