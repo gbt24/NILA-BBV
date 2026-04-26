@@ -62,7 +62,7 @@ def main(cfg: DictConfig) -> None:
             allocation_enabled=False,
             allocation_budget_ratio=0.0,
             allocation_base_loss_weight=0.0,
-            progress_enabled=False,
+            progress_enabled=bool(cfg.progress.enabled),
             device=str(cfg.device),
         )
 
