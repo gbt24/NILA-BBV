@@ -1,0 +1,27 @@
+defaults:
+  - dataset: cifar10
+  - federated: fedavg
+  - model: resnet18
+  - allocation: "off"
+  - watermarking: baseline
+  - owner: owner0
+  - verification: margin
+  - progress: default
+  - _self_
+
+num_nonowners: 20
+decision_threshold: 0.5
+decision_margin: 0.05
+competitor_owner_ids:
+  - owner1
+  - owner2
+  - owner3
+  - owner4
+output_root: outputs/runs/fpr-nonowners
+seed: 0
+device: auto
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

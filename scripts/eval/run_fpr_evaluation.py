@@ -25,8 +25,8 @@ from bbv.utils.io import write_json
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs/train",
-    config_name="watermark_baseline",
+    config_path="../../configs/eval",
+    config_name="fpr",
 )
 def main(cfg: DictConfig) -> None:
     dataset = str(cfg.dataset.name)
