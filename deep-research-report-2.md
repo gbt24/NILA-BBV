@@ -144,9 +144,10 @@ flowchart LR
 |---|---|---|
 | CIFAR-10 | 图像分类 | 复现实验快，适合先打通全流程 |
 | CIFAR-100 | 图像分类 | 类别更多，更容易观察 non-IID 下 watermark 冲突 |
-| FEMNIST | 图像分类 | 天然联邦划分，writer-level natural non-IID |
-| Shakespeare | 字符级语言建模 | 证明方法不局限于图像 |
-| Sent140 | 情感分类 | 补一个真实用户级文本任务 |
+| MNIST | 图像分类 | 经典轻量基线，10 类数字识别，验证方法在不同分辨率数据上的泛化能力 |
+| FEMNIST | 图像分类 | 天然联邦划分，writer-level natural non-IID（可选扩展） |
+| Shakespeare | 字符级语言建模 | 证明方法不局限于图像（可选扩展） |
+| Sent140 | 情感分类 | 真实用户级文本任务（可选扩展） |
 | ImageNet 小子集 | 图像分类 | 作为强泛化补充，不作为首轮主战场 |
 
 对于划分方式，建议同时覆盖**自然异质性**和**可控合成异质性**。2021–2022 年关于 non-IID benchmark 的工作已经指出，label skew、feature skew 和 quantity skew 应被区分开来，而不是只做一种 Dirichlet 划分。你可以把 LEAF 数据作为 natural split，把 CIFAR 类数据做如下合成 split：label skew 用 Dirichlet \(\alpha\in\{0.1,0.3,0.5,1.0\}\) 与 shard split 并行；feature skew 用客户端专属数据增强，如 brightness、blur、Gaussian noise、style transfer；quantity skew 用 log-normal 或 Zipf 采样控制每个客户端样本数；最后再做 combined skew，把 label skew 与 quantity skew 叠加。citeturn6search0turn6search8turn6search9turn6search12
@@ -175,7 +176,7 @@ flowchart LR
 
 消融实验至少需要六组：是否使用自适应分配；是否使用多比特码本；是否加入负证据集；是否做 margin 判决；是否使用 sequential verification；是否加入承诺模块。额外再做一个 hard-label-only 与 confidence-assisted 的对比，会很加分，因为这说明你的方法考虑了不同 API 暴露级别。citeturn20view4turn26view0
 
-超参数方面，我建议第一轮全部从“小而稳”出发：客户端数 \(K=50\) 或 \(100\)，参与率 0.1，每轮本地 epoch \(E=5\)，总轮数 CIFAR-10 用 200 左右、CIFAR-100 与文本任务可适当增加；码字长度 \(m\) 从 32、64、128 三档；watermark loss 权重从小值热启动，例如 \(0.05\) 或 \(0.1\) 起步；如果做 error-correction，可先用简单 BCH/Hamming，不必一上来设计复杂编码。FedAWM 的公开实现环境表明，这类实验在 RTX 4090 24GB 上是可以完成的，因此你的目标应该是：**先把 CIFAR-10、FEMNIST 跑扎实，再扩展到 CIFAR-100 和一个文本集**。citeturn26view0
+超参数方面，我建议第一轮全部从“小而稳”出发：客户端数 \(K=50\) 或 \(100\)，参与率 0.1，每轮本地 epoch \(E=5\)，总轮数 CIFAR-10 用 200 左右、CIFAR-100 与文本任务可适当增加；码字长度 \(m\) 从 32、64、128 三档；watermark loss 权重从小值热启动，例如 \(0.05\) 或 \(0.1\) 起步；如果做 error-correction，可先用简单 BCH/Hamming，不必一上来设计复杂编码。FedAWM 的公开实现环境表明，这类实验在 RTX 4090 24GB 上是可以完成的，因此你的目标应该是：**先把 CIFAR-10、MNIST 跑扎实，再扩展到 CIFAR-100 和一个可选文本集**。citeturn26view0
 
 ### 评测协议与统计检验
 
@@ -238,10 +239,10 @@ gantt
 |---|---|---|
 | 文献整合 | 2–3 周 | 一份 3–5 页 related work 综述 + 方法对比表 |
 | 初始复现 | 3 周 | FedAvg + 1 个版权基线的可运行代码 |
-| 数据工具 | 2 周 | label/feature/quantity skew 的统一划分脚本 |
+| 数据工具 | 2 周 | label/feature/quantity skew 的统一划分脚本（CIFAR-10/CIFAR-100/MNIST） |
 | 方法原型 | 4 周 | NILA-BBV 的初版实现 |
-| 主实验 | 4 周 | CIFAR-10/FEMNIST 主结果、消融、攻击结果 |
-| 扩展实验 | 2 周 | CIFAR-100 或 Shakespeare/Sent140 结果 |
+| 主实验 | 4 周 | CIFAR-10/MNIST 主结果、消融、攻击结果 |
+| 扩展实验 | 2 周 | CIFAR-100 或可选文本任务结果 |
 | 理论 | 2 周 | 2–3 个 theorem/proposition 草稿 |
 | 写作 | 3 周 | 期刊格式初稿 + 附录与补充材料 |
 
@@ -257,7 +258,7 @@ gantt
 |---|---|---|
 | 基线复现难 | 很多论文无完整代码或设定不统一 | 只精复现 3 个核心基线，其余做设计对照 |
 | novelty 不够突出 | 审稿人觉得只是“FedAWM + 一点改进” | 明确把 low-ambiguity、FPR/FNR 校准、false-claim 评估做成主贡献 |
-| 计算量失控 | 多数据集、多攻击、多 seed 导致排队太久 | 先固定 CIFAR-10 + FEMNIST 两主集；文本集作为补充 |
+| 计算量失控 | 多数据集、多攻击、多 seed 导致排队太久 | 先固定 CIFAR-10 + MNIST 两主集；CIFAR-100 作为扩展 |
 | 理论写不下来 | 一开始就想证明太强结果 | 先做检测误差界与 margin 界，再尝试自适应分配命题 |
 | 隐私问题被 reviewer 追问 | 适配度需要上传统计量 | 增加 label-distribution inference attack，证明泄漏风险受控 |
 
@@ -269,13 +270,13 @@ gantt
 
 如果你希望“本科生首投尽量稳”，我建议优先考虑由 entity["organization","Elsevier","academic publisher"] 出版的算法/系统期刊，其次再考虑更强的 entity["organization","IEEE","technical society"] Transactions；若后续理论明显增强，再考虑 entity["organization","USENIX","systems association"] 或 entity["organization","ACM","computing society"] 安全会议作为备选路线。citeturn9view0turn9view1turn9view2turn10search3turn11search1turn11search2turn11search9
 
-| 期刊或会议 | 适配度 | 你这篇工作的理想形态 | 版式与长度要点 |
-|---|---|---|---|
-| Knowledge-Based Systems | 很高 | 算法创新 + 系统实验 + 适度理论 | 原创论文“preferably no more than 20 double line spaced manuscript pages” citeturn9view0 |
-| Future Generation Computer Systems | 很高 | FL 系统视角更强，强调开销与工程完整性 | Full Length Article 为双栏单倍行距，**18 页内** citeturn9view1 |
-| IEEE Internet of Things Journal | 中高 | 要有 edge/IoT/device 场景叙事 | IEEE 双栏模板；摘要 150–250 词；发表后 **超 8 页**有强制版面费 citeturn9view2 |
-| IEEE Transactions on Dependable and Secure Computing | 中 | 必须把 false claims、deterministic evidence、理论性再做强 | 依 IEEE CS MOPC，regular paper 长度线通常按 **12 formatted pages** 计，提交上限 **18 页** citeturn10search3 |
-| NDSS / USENIX Security / ACM CCS | 备选 | 如果你把 low-ambiguity 与 false-claim 理论做得很强，可转安全会议路线 | NDSS 主体 13 页内；USENIX Security 主体 13 页、终稿 20 页内；CCS 双栏 12 页技术正文 citeturn11search9turn11search1turn11search7turn11search2 |
+| 期刊或会议                                                | 适配度 | 你这篇工作的理想形态                                       | 版式与长度要点                                                                                                                       |
+| ---------------------------------------------------- | --- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Knowledge-Based Systems                              | 很高  | 算法创新 + 系统实验 + 适度理论                               | 原创论文“preferably no more than 20 double line spaced manuscript pages” citeturn9view0                                        |
+| Future Generation Computer Systems                   | 很高  | FL 系统视角更强，强调开销与工程完整性                             | Full Length Article 为双栏单倍行距，**18 页内** citeturn9view1                                                                       |
+| IEEE Internet of Things Journal                      | 中高  | 要有 edge/IoT/device 场景叙事                          | IEEE 双栏模板；摘要 150–250 词；发表后 **超 8 页**有强制版面费 citeturn9view2                                                                  |
+| IEEE Transactions on Dependable and Secure Computing | 中   | 必须把 false claims、deterministic evidence、理论性再做强   | 依 IEEE CS MOPC，regular paper 长度线通常按 **12 formatted pages** 计，提交上限 **18 页** citeturn10search3                               |
+| NDSS / USENIX Security / ACM CCS                     | 备选  | 如果你把 low-ambiguity 与 false-claim 理论做得很强，可转安全会议路线 | NDSS 主体 13 页内；USENIX Security 主体 13 页、终稿 20 页内；CCS 双栏 12 页技术正文 citeturn11search9turn11search1turn11search7turn11search2 |
 
 对你个人而言，我的现实排序是：
 
