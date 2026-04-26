@@ -13,6 +13,16 @@ seed: 0
 output_root: outputs/runs
 device: auto
 
+# FPR evaluation (used by scripts/eval/run_fpr_evaluation.py)
+num_nonowners: 20
+decision_threshold: 0.5
+decision_margin: 0.05
+competitor_owner_ids:
+  - owner1
+  - owner2
+  - owner3
+  - owner4
+
 hydra:
   run:
     dir: .
