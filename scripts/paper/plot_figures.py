@@ -301,7 +301,7 @@ def plot_fig2_main_results():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Fig 3 – Attack robustness (dual panel)
+# Fig 3 – Attack robustness (triple panel)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _collect_attack_scores(attacks_root, attack_types, seeds):
@@ -313,7 +313,7 @@ def _collect_attack_scores(attacks_root, attack_types, seeds):
         seed_dir = f"{attacks_root}-seed{seed}"
         for atk in attack_types:
             pattern = os.path.join(ATTACKS_DIR, seed_dir, f"{atk}-*",
-                                   "verification_after_attack.json")
+                                    "verification_after_attack.json")
             matches = _glob.glob(pattern)
             if matches:
                 with open(matches[0]) as f:
@@ -322,28 +322,50 @@ def _collect_attack_scores(attacks_root, attack_types, seeds):
                 decisions[atk].append(d["decision"])
     return scores, decisions
 
+
+def _collect_attack_scores_flat(attacks_root, attack_types, seeds):
+    """Same as _collect_attack_scores but for flat dir structure (no -seedN suffix)."""
+    import glob as _glob
+    scores = {atk: [] for atk in attack_types}
+    decisions = {atk: [] for atk in attack_types}
+    root_dir = os.path.join(ATTACKS_DIR, attacks_root)
+    for atk in attack_types:
+        pattern = os.path.join(root_dir, f"{atk}-*", "verification_after_attack.json")
+        matches = sorted(_glob.glob(pattern))
+        for m in matches[:len(seeds)]:  # take first N = num seeds (time-ordered)
+            with open(m) as f:
+                d = json.load(f)
+            scores[atk].append(d["owner_score"])
+            decisions[atk].append(d["decision"])
+    return scores, decisions
+
 def plot_fig3_attack_robustness():
     attack_types = ["finetune", "quantization"]
     attack_labels = ["Finetune", "Quantization"]
     attack_colors = [COLORS[a] for a in attack_types]
     seeds = [0, 1, 2]
 
-    # CIFAR-10
-    c10_scores, c10_dec = _collect_attack_scores("cifar10-robustness", attack_types, seeds)
+    # CIFAR-10 Random multi-bit
+    c10r_scores, c10r_dec = _collect_attack_scores("cifar10-robustness", attack_types, seeds)
+    # CIFAR-10 Hadamard
+    c10h_scores, c10h_dec = _collect_attack_scores_flat("cifar10-hadamard-robustness", attack_types, seeds)
     # MNIST
     mn_scores, mn_dec = _collect_attack_scores("mnist-robustness", attack_types, seeds)
 
     # Pre-attack owner scores (mean)
-    c10_pre = _read_run_verifications(os.path.join(RUNS_DIR, "cifar10-main-adaptive-tuneB"))
+    c10r_pre = _read_run_verifications(os.path.join(RUNS_DIR, "cifar10-main-adaptive-tuneB"))
+    c10h_pre = _read_run_verifications(os.path.join(RUNS_DIR, "cifar10-hadamard"))
     mn_pre = _read_run_verifications(os.path.join(RUNS_DIR, "mnist-main-adaptive"))
-    c10_pre_mean = np.mean([d["owner_score"] for d in c10_pre])
+    c10r_pre_mean = np.mean([d["owner_score"] for d in c10r_pre])
+    c10h_pre_mean = np.mean([d["owner_score"] for d in c10h_pre])
     mn_pre_mean = np.mean([d["owner_score"] for d in mn_pre])
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 4.5))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4.5))
 
-    for ax, (scores, decisions), pre_mean, ds_name in [
-        (ax1, (c10_scores, c10_dec), c10_pre_mean, "CIFAR-10"),
-        (ax2, (mn_scores, mn_dec), mn_pre_mean, "MNIST"),
+    for ax, (scores, decisions), pre_mean, ds_name, cb_label in [
+        (ax1, (c10r_scores, c10r_dec), c10r_pre_mean, "CIFAR-10", "Random"),
+        (ax2, (c10h_scores, c10h_dec), c10h_pre_mean, "CIFAR-10", "Hadamard"),
+        (ax3, (mn_scores, mn_dec), mn_pre_mean, "MNIST", "Random"),
     ]:
         x = np.arange(len(attack_labels))
         means = [np.mean(scores[a]) for a in attack_types]
@@ -366,10 +388,11 @@ def plot_fig3_attack_robustness():
 
         ax.set_xticks(x)
         ax.set_xticklabels(attack_labels, fontsize=8.5, rotation=25, ha="right")
-        ax.set_ylabel("Post-attack owner score", fontsize=9)
+        ax.set_ylabel("Post-attack owner score" if ax == ax1 else "", fontsize=9)
         ax.set_ylim(0, 1.05)
         ax.legend(loc="lower right", fontsize=7.5)
-        ax.set_title(f"({chr(97 + [0, 1].index([ax1, ax2].index(ax)))}) {ds_name}",
+        panel_label = chr(97 + [ax1, ax2, ax3].index(ax))
+        ax.set_title(f"({panel_label}) {ds_name}\n{cb_label} codebook",
                      fontweight="bold", fontsize=10)
 
     fig.suptitle("Attack Robustness: Post-Attack Owner Verification Scores",
@@ -454,8 +477,10 @@ def plot_fig4_non_iid():
 
 def plot_fig5_competitor_distribution():
     datasets = [
-        ("CIFAR-10", os.path.join(RUNS_DIR, "cifar10-main-adaptive-tuneB"), "cifar10"),
-        ("MNIST",    os.path.join(RUNS_DIR, "mnist-main-adaptive"),          "mnist"),
+        ("CIFAR-10\nMulti-bit",  os.path.join(RUNS_DIR, "cifar10-main-adaptive-tuneB"), "cifar10"),
+        ("CIFAR-10\nHadamard",   os.path.join(RUNS_DIR, "cifar10-hadamard"),              "cifar10"),
+        ("CIFAR-10\nSingle-trig", os.path.join(RUNS_DIR, "cifar10-single-trigger-baseline"), "cifar10"),
+        ("MNIST",                os.path.join(RUNS_DIR, "mnist-main-adaptive"),           "mnist"),
     ]
 
     names = []
@@ -474,49 +499,49 @@ def plot_fig5_competitor_distribution():
         owner_data.append(owners)
         competitor_data.append(competitors)
 
-    fig, ax = plt.subplots(figsize=(6.0, 4.5))
+    fig, ax = plt.subplots(figsize=(8.5, 4.5))
     n = len(names)
-    width = 0.35
-    colors = [COLORS["cifar10"], COLORS["mnist"]]
+    width = 0.30
 
     for i, name in enumerate(names):
         bp_o = ax.boxplot(
-            owner_data[i], positions=[i - width / 2], widths=width * 0.75,
-            patch_artist=True, medianprops={"color": "black", "linewidth": 1.5})
-        bp_o["boxes"][0].set_facecolor(colors[i])
+            owner_data[i], positions=[i - width / 2], widths=width * 0.7,
+            patch_artist=True, medianprops={"color": "black", "linewidth": 1.2})
+        bp_o["boxes"][0].set_facecolor(COLORS["owner"])
         bp_o["boxes"][0].set_alpha(0.85)
 
         bp_c = ax.boxplot(
-            competitor_data[i], positions=[i + width / 2], widths=width * 0.75,
-            patch_artist=True, medianprops={"color": "black", "linewidth": 1.5})
+            competitor_data[i], positions=[i + width / 2], widths=width * 0.7,
+            patch_artist=True, medianprops={"color": "black", "linewidth": 1.2})
         bp_c["boxes"][0].set_facecolor(COLORS["competitor"])
         bp_c["boxes"][0].set_alpha(0.55)
 
-        np.random.seed(42)
-        jitter_o = np.random.normal(i - width / 2, 0.025, len(owner_data[i]))
-        ax.scatter(jitter_o, owner_data[i], s=24, c=colors[i],
+        np.random.seed(42 + i)
+        jitter_o = np.random.normal(i - width / 2, 0.02, len(owner_data[i]))
+        ax.scatter(jitter_o, owner_data[i], s=20, c=COLORS["owner"],
                    edgecolors="white", linewidth=0.5, zorder=5)
-        jitter_c = np.random.normal(i + width / 2, 0.05, len(competitor_data[i]))
-        ax.scatter(jitter_c, competitor_data[i], s=8, c="#666666",
+        jitter_c = np.random.normal(i + width / 2, 0.04, len(competitor_data[i]))
+        ax.scatter(jitter_c, competitor_data[i], s=6, c="#666666",
                    edgecolors="white", linewidth=0.3, zorder=5)
 
     ax.axhline(y=THRESHOLD, color=COLORS["threshold"], linestyle="--", linewidth=1.5)
 
     ax.set_xticks(np.arange(n))
-    ax.set_xticklabels(names, fontsize=10)
+    ax.set_xticklabels(names, fontsize=8)
     ax.set_ylabel("Score", fontsize=10)
-    ax.set_ylim(0, 1.0)
+    ax.set_ylim(0, 1.05)
 
     legend_patches = [
         plt.matplotlib.patches.Patch(color=COLORS["owner"], alpha=0.85, label="Owner"),
         plt.matplotlib.patches.Patch(color=COLORS["competitor"], alpha=0.55,
                                       label="Competitors"),
         plt.Line2D([0], [0], color=COLORS["threshold"], linestyle="--",
-                    label=f"Threshold ({THRESHOLD})"),
+                    label=f"Threshold ($\\tau={THRESHOLD}$)"),
     ]
-    ax.legend(handles=legend_patches, loc="upper right", fontsize=8)
+    ax.legend(handles=legend_patches, loc="upper right", fontsize=7.5)
 
-    ax.set_title("Owner vs Competitor Score Distributions", fontweight="bold", fontsize=11)
+    ax.set_title("Owner vs Competitor Score Distributions (CIFAR-10 codebooks + MNIST)",
+                 fontweight="bold", fontsize=10)
     save_figure(fig, "figure-05-competitor-distribution")
 
 
@@ -808,82 +833,65 @@ def plot_fig7_utility_tradeoff():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def plot_fig8_fpr():
-    report_path = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
-                               "fpr_evaluation_report.json")
-    if not os.path.exists(report_path):
-        print("  [skip] Fig 8 (FPR): report not found")
-        return
-
-    with open(report_path) as f:
-        report = json.load(f)
-
-    results = report.get("per_seed_results", [])
-    if not results:
-        print("  [skip] Fig 8 (FPR): no per-seed results")
-        return
+    report_mb = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
+                             "fpr_evaluation_report_multi-bit.json")
+    report_st = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
+                             "fpr_evaluation_report_single-trigger.json")
 
     owner_data_file = os.path.join(RUNS_DIR, "cifar10-hadamard")
     owner_data = _read_run_verifications(owner_data_file)
     owner_scores = [d["owner_score"] for d in owner_data] if owner_data else []
     owner_mean = np.mean(owner_scores) if owner_scores else 0.73
 
-    clean_scores = [r["owner_score"] for r in results]
-
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 4.2))
-
-    # Left: score distribution histogram
     bins = np.linspace(-0.1, 1.05, 24)
-    ax1.hist(clean_scores, bins=bins, color=COLORS["competitor"], alpha=0.6,
-             edgecolor="gray", linewidth=0.8, label=f"Clean models (n={len(clean_scores)})")
-    if owner_scores:
-        for s in owner_scores:
-            ax1.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.5, linewidth=1.2)
-        ax1.axvline(x=owner_mean, color=COLORS["owner"], linestyle="-", linewidth=2.0,
-                    label=f"Owner mean ({owner_mean:.3f})")
 
+    # Left: Multi-bit FPR histogram
+    if os.path.exists(report_mb):
+        with open(report_mb) as f:
+            rmb = json.load(f)
+        clean_mb = [r["owner_score"] for r in rmb.get("per_seed_results", [])]
+        ax1.hist(clean_mb, bins=bins, color=COLORS["competitor"], alpha=0.6,
+                 edgecolor="gray", linewidth=0.8,
+                 label=f"Clean models (n={len(clean_mb)})")
+        ax1.set_title("(a) Multi-bit Codebook FPR = 0/20",
+                      fontweight="bold", fontsize=10)
+    else:
+        ax1.set_title("(a) Multi-bit (report missing)", fontweight="bold", fontsize=10)
+
+    for s in owner_scores:
+        ax1.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.5, linewidth=1.2)
+    ax1.axvline(x=owner_mean, color=COLORS["owner"], linestyle="-", linewidth=2.0)
     ax1.axvline(x=THRESHOLD, color=COLORS["threshold"], linestyle="-", linewidth=1.5,
-                label=f"Threshold $\\tau={THRESHOLD}$")
+                label=f"$\\tau={THRESHOLD}$")
     ax1.set_xlabel("Owner Score $s_i$", fontsize=10)
     ax1.set_ylabel("Count", fontsize=10)
+    ax1.set_xlim(-0.1, 1.05)
     ax1.legend(fontsize=7.5, loc="upper left")
-    ax1.set_title("(a) Score Distribution: Clean vs Owner Models",
-                  fontweight="bold", fontsize=10)
 
-    # Right: threshold sweep (heatmap or bar chart)
-    sweep = report.get("threshold_sweep", [])
-    taus = sorted(set(s["tau"] for s in sweep))
-    gammas = sorted(set(s["gamma"] for s in sweep))
+    # Right: Single-trigger FPR histogram
+    if os.path.exists(report_st):
+        with open(report_st) as f:
+            rst = json.load(f)
+        clean_st = [r["owner_score"] for r in rst.get("per_seed_results", [])]
+        npass = sum(1 for r in rst.get("per_seed_results", []) if r.get("passed"))
+        ax2.hist(clean_st, bins=bins, color=COLORS["fail"], alpha=0.6,
+                 edgecolor="gray", linewidth=0.8,
+                 label=f"Clean models (n={len(clean_st)})")
+        ax2.set_title(f"(b) Single-trigger Codebook FPR = {npass}/{len(clean_st)}",
+                      fontweight="bold", fontsize=10)
+    else:
+        ax2.set_title("(b) Single-trigger (report missing)", fontweight="bold", fontsize=10)
 
-    # Build matrix
-    fpr_matrix = np.zeros((len(taus), len(gammas)))
-    for i, t in enumerate(taus):
-        for j, g in enumerate(gammas):
-            for row in sweep:
-                if row["tau"] == t and row["gamma"] == g:
-                    fpr_matrix[i, j] = row["fpr"] if not np.isnan(row["fpr"]) else 0
+    for s in owner_scores:
+        ax2.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.3, linewidth=1.2)
+    ax2.axvline(x=THRESHOLD, color=COLORS["threshold"], linestyle="-", linewidth=1.5)
+    ax2.set_xlabel("Owner Score $s_i$", fontsize=10)
+    ax2.set_ylabel("Count", fontsize=10)
+    ax2.set_xlim(-0.1, 1.05)
+    ax2.legend(fontsize=7.5, loc="upper left")
 
-    im = ax2.imshow(fpr_matrix, aspect="auto", origin="lower", cmap="RdYlGn_r",
-                    vmin=0, vmax=1, interpolation="nearest")
-    ax2.set_xticks(range(len(gammas)))
-    ax2.set_xticklabels([f"{g:.2f}" for g in gammas], fontsize=8)
-    ax2.set_yticks(range(len(taus)))
-    ax2.set_yticklabels([f"{t:.2f}" for t in taus], fontsize=8)
-    ax2.set_xlabel("Margin $\\gamma$", fontsize=10)
-    ax2.set_ylabel("Threshold $\\tau$", fontsize=10)
-    ax2.set_title("(b) FPR by Threshold $\\times$ Margin", fontweight="bold", fontsize=10)
-
-    # Annotate cells
-    for i in range(len(taus)):
-        for j in range(len(gammas)):
-            val = fpr_matrix[i, j]
-            text_color = "white" if val > 0.4 else "black"
-            ax2.text(j, i, f"{val:.2f}", ha="center", va="center",
-                     fontsize=7, color=text_color, fontweight="bold")
-
-    cbar = fig.colorbar(im, ax=ax2, shrink=0.82)
-    cbar.set_label("FPR", fontsize=9)
-
-    fig.suptitle("Empirical False-Positive Rate Validation (CIFAR-10, $m=64$)",
+    fig.suptitle("Empirical FPR Validation: Multi-bit vs Single-trigger (CIFAR-10, $m=64$, 20 clean models)",
                  fontweight="bold", fontsize=11, y=1.02)
     fig.tight_layout()
     save_figure(fig, "figure-08-fpr-evaluation")
