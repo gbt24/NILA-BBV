@@ -22,7 +22,11 @@ from omegaconf import DictConfig
 
 from bbv.federated import train_federated
 from bbv.verification.baseline import run_verification_from_checkpoint
-from bbv.watermarking.codebook import generate_codebook
+from bbv.watermarking.codebook import (
+    generate_codebook,
+    generate_hadamard_codebook,
+    generate_single_trigger_codebook,
+)
 from bbv.watermarking.commitment import build_codebook_hash
 from bbv.watermarking.queries import build_negative_queries, build_positive_queries
 from bbv.utils.io import write_json
@@ -45,9 +49,14 @@ def _find_run_dir_by_seed(output_root: Path, target_seed: int) -> Path | None:
     return found[0] if found else None
 
 
-def _build_fake_artifacts(owner_id: str, code_length: int, seed: int) -> dict:
+def _build_fake_artifacts(owner_id: str, code_length: int, seed: int, codebook_type: str = "multi-bit") -> dict:
     """Build a synthetic artifacts dict for verification against a clean model."""
-    codebook = generate_codebook(owner_id, code_length, seed)
+    if codebook_type == "single-trigger":
+        codebook = generate_single_trigger_codebook(code_length)
+    elif codebook_type == "hadamard":
+        codebook = generate_hadamard_codebook(owner_id, code_length, seed)
+    else:
+        codebook = generate_codebook(owner_id, code_length, seed)
     pos_queries = [q.tolist() for q in build_positive_queries(codebook, seed)]
     neg_queries = [q.tolist() for q in build_negative_queries(codebook, seed)]
     codebook_hash = build_codebook_hash(codebook)
@@ -57,7 +66,7 @@ def _build_fake_artifacts(owner_id: str, code_length: int, seed: int) -> dict:
         "codebook_hash": codebook_hash,
         "positive_queries": pos_queries,
         "negative_queries": neg_queries,
-        "wm_train_config": {"seed": seed, "code_length": code_length},
+        "wm_train_config": {"seed": seed, "code_length": code_length, "codebook_type": codebook_type},
     }
 
 
@@ -74,6 +83,7 @@ def main(cfg: DictConfig) -> None:
     gamma = float(cfg.get("decision_margin", 0.05))
     negative_weight = float(cfg.get("negative_weight", 0.2))
     codebook_seed = int(cfg.get("fpr_codebook_seed", 0))
+    codebook_type = str(cfg.get("fpr_codebook_type", "multi-bit"))
     competitor_ids = list(cfg.get("competitor_owner_ids", ["owner1", "owner2", "owner3", "owner4"]))
     code_length = int(cfg.watermarking.code_length)
     skip_training = bool(cfg.get("skip_training", False))
@@ -112,7 +122,7 @@ def main(cfg: DictConfig) -> None:
     print(f"FPR evaluation: tau={tau}, gamma={gamma}")
 
     # Build artifacts once for all clean models (same codebook, seed=0)
-    artifacts = _build_fake_artifacts("owner0", code_length, codebook_seed)
+    artifacts = _build_fake_artifacts("owner0", code_length, codebook_seed, codebook_type)
     owner_codebook_hash = artifacts["codebook_hash"]
     artifacts_path = output_root / "_fpr_artifacts.json"
     write_json(artifacts_path, artifacts)
@@ -181,7 +191,7 @@ def main(cfg: DictConfig) -> None:
             print(f"  tau={row['tau']:.2f}, gamma={row['gamma']:.2f}: "
                   f"FPR={row['fpr']:.4f} ({row['fp_count']}/{row['total']})")
 
-    report_path = output_root / "fpr_evaluation_report.json"
+    report_path = output_root / f"fpr_evaluation_report_{codebook_type}.json"
     write_json(report_path, {
         "num_nonowners": num_nonowners,
         "evaluated": len(results),

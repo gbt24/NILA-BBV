@@ -1,0 +1,4 @@
+name: "off"
+enabled: false
+code_length: 64
+wm_weight: 0.0
