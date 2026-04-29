@@ -23,6 +23,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
+from pathlib import Path
 
 # ── Global style ──────────────────────────────────────────────────────────────
 
@@ -882,31 +883,40 @@ def plot_fig7_utility_tradeoff():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def plot_fig8_fpr():
-    report_mb = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
-                             "fpr_evaluation_report_multi-bit.json")
     report_st = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
                              "fpr_evaluation_report_single-trigger.json")
+    multicb_dir = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
+                               "reports_multicodebook")
 
     owner_data_file = os.path.join(RUNS_DIR, "cifar10-hadamard")
     owner_data = _read_run_verifications(owner_data_file)
     owner_scores = [d["owner_score"] for d in owner_data] if owner_data else []
     owner_mean = np.mean(owner_scores) if owner_scores else 0.73
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 4.2))
-    bins = np.linspace(-0.1, 1.05, 24)
+    # Pool multi-codebook results
+    clean_mb_all = []
+    total_fp = 0
+    total_n = 0
+    if os.path.isdir(multicb_dir):
+        for p in sorted(Path(multicb_dir).glob("fpr_codebook_seed*.json")):
+            rmb = json.loads(p.read_text())
+            scores = [r["owner_score"] for r in rmb.get("per_seed_results", [])]
+            clean_mb_all.extend(scores)
+            total_fp += sum(1 for r in rmb.get("per_seed_results", []) if r.get("passed"))
+            total_n += len(rmb.get("per_seed_results", []))
 
-    # Left: Multi-bit FPR histogram
-    if os.path.exists(report_mb):
-        with open(report_mb) as f:
-            rmb = json.load(f)
-        clean_mb = [r["owner_score"] for r in rmb.get("per_seed_results", [])]
-        ax1.hist(clean_mb, bins=bins, color=COLORS["competitor"], alpha=0.6,
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 4.2))
+    bins = np.linspace(-0.1, 1.05, 32)
+
+    # Left: Multi-bit FPR histogram (pooled over 10 codebooks)
+    if clean_mb_all:
+        ax1.hist(clean_mb_all, bins=bins, color=COLORS["competitor"], alpha=0.6,
                  edgecolor="gray", linewidth=0.8,
-                 label=f"Clean models (n={len(clean_mb)})")
-        ax1.set_title("(a) Multi-bit Codebook FPR = 0/20",
+                 label=f"Clean models (n={len(clean_mb_all)})")
+        ax1.set_title(f"(a) Multi-bit Pooled FPR = {total_fp}/{total_n} ({total_fp/total_n:.3f})",
                       fontweight="bold", fontsize=10)
     else:
-        ax1.set_title("(a) Multi-bit (report missing)", fontweight="bold", fontsize=10)
+        ax1.set_title("(a) Multi-bit (reports missing)", fontweight="bold", fontsize=10)
 
     for s in owner_scores:
         ax1.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.5, linewidth=1.2)
@@ -940,7 +950,7 @@ def plot_fig8_fpr():
     ax2.set_xlim(-0.1, 1.05)
     ax2.legend(fontsize=7.5, loc="upper left")
 
-    fig.suptitle("Empirical FPR Validation: Multi-bit vs Single-trigger (CIFAR-10, $m=64$, 20 clean models)",
+    fig.suptitle("Empirical FPR Validation: Multi-bit vs Single-trigger (CIFAR-10, $m=64$, 10 codebooks $\\times$ 20 clean models)",
                  fontweight="bold", fontsize=11, y=1.02)
     fig.tight_layout()
     save_figure(fig, "figure-08-fpr-evaluation")

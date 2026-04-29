@@ -54,7 +54,8 @@ def _build_fake_artifacts(owner_id: str, code_length: int, seed: int, codebook_t
     if codebook_type == "single-trigger":
         codebook = generate_single_trigger_codebook(code_length)
     elif codebook_type == "hadamard":
-        codebook = generate_hadamard_codebook(owner_id, code_length, seed)
+        owner_index = sum(ord(ch) for ch in owner_id) % code_length
+        codebook = generate_hadamard_codebook(owner_index, code_length)
     else:
         codebook = generate_codebook(owner_id, code_length, seed)
     pos_queries = [q.tolist() for q in build_positive_queries(codebook, seed)]
