@@ -155,61 +155,60 @@ def _draw_module(ax, x, y, w, h, title, lines, inp, out, phase):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def plot_fig1_framework():
-    fig, ax = plt.subplots(figsize=(12, 5.5))
-    ax.set_xlim(0, 12); ax.set_ylim(0, 5.5); ax.axis("off")
+    fig, ax = plt.subplots(figsize=(12, 6.2))
+    ax.set_xlim(0, 12); ax.set_ylim(0, 6.2); ax.axis("off")
 
     train_bg = FancyBboxPatch(
-        (0.25, 2.65), 11.5, 2.45, boxstyle="round,pad=0.1",
+        (0.25, 3.15), 11.5, 2.45, boxstyle="round,pad=0.1",
         facecolor="#E8F4F8", edgecolor="#2E86AB", linewidth=2, alpha=0.25)
     ax.add_patch(train_bg)
-    ax.text(0.45, 4.90, "Training Phase", fontsize=11, fontweight="bold",
+    ax.text(0.45, 5.40, "Training Phase", fontsize=11, fontweight="bold",
             color="#2E86AB", style="italic")
 
     verify_bg = FancyBboxPatch(
-        (0.25, 0.15), 11.5, 2.20, boxstyle="round,pad=0.1",
+        (0.25, 0.25), 11.5, 2.45, boxstyle="round,pad=0.1",
         facecolor="#FDE8E8", edgecolor="#B91C1C", linewidth=2, alpha=0.25)
     ax.add_patch(verify_bg)
-    ax.text(0.45, 2.20, "Verification Phase", fontsize=11, fontweight="bold",
+    ax.text(0.45, 2.50, "Verification Phase", fontsize=11, fontweight="bold",
             color="#B91C1C", style="italic")
 
     modules = [
-        (0.4, 2.85, 2.8, 1.7, "Codebook Generation", [
-            r"Binary codeword  $c_i \in \{0,1\}^m$",
-            r"Positive query set  $Q_i^+$",
-            r"Negative query set  $Q_i^-$",
-            r"Owner ID binding",
-        ], "In: Public auxiliary data", "Out: $\{c_i, Q_i^+, Q_i^-\}$", "train"),
-        (3.7, 2.85, 2.9, 1.7, "Adaptability Estimation", [
-            r"Gradient alignment:",
-            r"  $a_k = \sigma(\alpha \cos(g_k^{main},$",
-            r"              $g_k^{wm}) + \beta \, cover_k)$",
-            r"Allocation weight  $\lambda_k = f(a_k)$",
-        ], "In: Local data $D_k$, gradients", "Out: $\{a_k, \lambda_k\}$", "train"),
-        (7.1, 2.85, 4.0, 1.7, "Adaptive Embedding", [
-            r"Federated aggregation:",
-            r"  $\mathcal{L} = \mathcal{L}_{task} + \lambda_k \cdot \mathcal{L}_{wm}$",
-            r"Client selection by $a_k$",
-            r"Watermark bits embedded adaptively",
-        ], "In: $\{a_k\}, \{c_i\}, D_{train}$", "Out: Watermarked model $\theta$", "train"),
-        (1.3, 0.35, 3.6, 1.55, "Black-box Verification", [
-            r"Query model API with $Q_i$",
-            r"Recover predicted codeword:",
-            r"  $\hat{c}_i = \mathrm{API}(Q_i)$",
-            r"Compute verification score $s_i$",
-        ], "In: Model API, $\{Q_i\}$", "Out: Scores $\{s_i\}$", "verify"),
-        (5.7, 0.35, 5.0, 1.55, "Statistical Decision", [
-            r"Owner score $\geq \theta + \gamma$",
-            r"  AND",
-            r"Owner score $>$ all competitor scores",
-            r"",
-            r"Decision $\in$ \{Verify, Reject, Ambiguous\}",
-        ], "In: $\{s_i\}$, thresholds", "Out: Ownership claim", "verify"),
+        (0.55, 3.45, 2.45, 1.55, "Codebook & Queries", [
+            r"Owner codeword $\mathbf{c}_i$",
+            r"Query set $Q_i$",
+            r"Diagnostic negative set $Q_i^-$",
+        ], "In: auxiliary data", r"Out: $\{\mathbf{c}_i,Q_i,Q_i^-\}$", "train"),
+        (3.45, 3.45, 2.45, 1.55, "Non-IID Scoring", [
+            r"Gradient conflict",
+            r"Label coverage",
+            r"Client score $a_k$",
+        ], "In: client statistics", "Out: allocation weights", "train"),
+        (6.35, 3.45, 2.45, 1.55, "Adaptive Embedding", [
+            r"FL training with $\mathcal{L}_{wm}$",
+            r"Client-specific weights",
+            r"Aggregate model $\theta$",
+        ], "In: codebook, $a_k$", "Out: watermarked $\theta$", "train"),
+        (9.25, 3.45, 2.05, 1.55, "Commitment", [
+            r"Owner ID",
+            r"Codebook hash",
+            r"Training config hash",
+        ], "In: evidence metadata", "Out: audit record", "train"),
+        (1.55, 0.65, 3.05, 1.55, "Black-box Querying", [
+            r"Query suspicious model",
+            r"Recover codeword $\hat{\mathbf{c}}_i$",
+            r"Compute owner score $s_i$",
+        ], "In: model API, $Q_i$", "Out: scores", "verify"),
+        (6.65, 0.65, 3.65, 1.55, "Margin Decision", [
+            r"Threshold: $s_i \geq \tau$",
+            r"Margin: $s_i - \max_{j\ne i}s_j \geq \gamma$",
+            r"Verify / Reject / Ambiguous",
+        ], "In: scores, commitment", "Out: ownership decision", "verify"),
     ]
 
     for m in modules:
         _draw_module(ax, *m)
 
-    for i in range(2):
+    for i in range(3):
         x1 = modules[i][0] + modules[i][2]
         y_mid = modules[i][1] + modules[i][3] / 2
         x2 = modules[i + 1][0]
@@ -218,19 +217,28 @@ def plot_fig1_framework():
 
     x_theta = modules[2][0] + modules[2][2] / 2
     y_top = modules[2][1]
-    y_bot = modules[3][1] + modules[3][3]
-    ax.annotate("", xy=(x_theta, y_bot + 0.06), xytext=(x_theta, y_top - 0.06),
+    y_bot = modules[4][1] + modules[4][3]
+    ax.annotate("", xy=(modules[4][0] + modules[4][2] / 2, y_bot + 0.06),
+                 xytext=(x_theta, y_top - 0.06),
                  arrowprops=dict(arrowstyle="->", color="#B91C1C", lw=2.2,
-                                 connectionstyle="arc3,rad=0"))
-    ax.text(x_theta + 0.18, (y_top + y_bot) / 2, r"Model $\theta$",
+                                 connectionstyle="arc3,rad=-0.28"))
+    ax.text(4.8, 2.85, r"Model API $\theta$",
             ha="left", va="center", fontsize=9, fontweight="bold",
-            color="#B91C1C", rotation=90)
+            color="#B91C1C")
 
-    x1 = modules[3][0] + modules[3][2]
-    y_mid = modules[3][1] + modules[3][3] / 2
-    x2 = modules[4][0]
+    x1 = modules[4][0] + modules[4][2]
+    y_mid = modules[4][1] + modules[4][3] / 2
+    x2 = modules[5][0]
     ax.annotate("", xy=(x2 - 0.06, y_mid), xytext=(x1 + 0.06, y_mid),
                  arrowprops=dict(arrowstyle="->", color="#555555", lw=1.5))
+
+    x_commit = modules[3][0] + modules[3][2] / 2
+    ax.annotate("", xy=(modules[5][0] + modules[5][2] / 2, modules[5][1] + modules[5][3] + 0.06),
+                 xytext=(x_commit, modules[3][1] - 0.06),
+                 arrowprops=dict(arrowstyle="->", color="#7C3AED", lw=1.8,
+                                 connectionstyle="arc3,rad=0.25"))
+    ax.text(8.7, 2.75, "Commitment check", ha="center", va="center",
+            fontsize=8.5, fontweight="bold", color="#7C3AED")
 
     ax.set_title("NILA-BBV Framework Overview",
                  fontsize=12, fontweight="bold", pad=15)
