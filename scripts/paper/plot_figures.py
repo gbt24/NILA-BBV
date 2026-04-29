@@ -406,25 +406,13 @@ def plot_fig3_attack_robustness():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def plot_fig4_non_iid():
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 4.5))
 
-    # Dirichlet — Hadamard codebook
-    alphas = ["0.1", "0.3", "0.5", "1.0"]
-    dir_means, dir_stds, dir_pass, dir_accs = [], [], [], []
-    for a in alphas:
-        rdir = os.path.join(RUNS_DIR, f"cifar10-hadamard-dirichlet-a{a}")
-        if not os.path.isdir(rdir):
-            continue
-        data = _read_run_verifications(rdir)
-        scores = [d["owner_score"] for d in data]
-        decisions = [d["decision"] for d in data]
-        dir_means.append(np.mean(scores))
-        dir_stds.append(np.std(scores, ddof=1) if len(scores) > 1 else 0.0)
-        dir_pass.append(f"{sum(int(bool(d)) for d in decisions)}/{len(decisions)}")
-        # Get accuracy
+    # Helper to read accuracy
+    def _read_acc(run_dir):
         accs = []
-        for sd in sorted(os.listdir(rdir)):
-            sp = os.path.join(rdir, sd)
+        for sd in sorted(os.listdir(run_dir)):
+            sp = os.path.join(run_dir, sd)
             mp = os.path.join(sp, "metrics.json")
             if os.path.exists(mp):
                 with open(mp) as f:
@@ -433,8 +421,7 @@ def plot_fig4_non_iid():
                     best = max(r.get("val_accuracy", 0) for r in d["rounds"])
                     if best > 0:
                         accs.append(best * 100)
-        if accs:
-            dir_accs.append(np.mean(accs))
+        return np.mean(accs) if accs else None
 
     # IID reference
     iid_dir = os.path.join(RUNS_DIR, "cifar10-hadamard")
@@ -442,38 +429,85 @@ def plot_fig4_non_iid():
     iid_scores = [d["owner_score"] for d in iid_data]
     iid_mean = np.mean(iid_scores)
 
+    # ── Panel (a): Dirichlet label skew ──
+    alphas = ["0.1", "0.3", "0.5", "1.0"]
+    dir_means, dir_stds, dir_pass, dir_accs = [], [], [], []
+    for a in alphas:
+        rdir = os.path.join(RUNS_DIR, f"cifar10-hadamard-dirichlet-a{a}")
+        if not os.path.isdir(rdir): continue
+        data = _read_run_verifications(rdir)
+        scores = [d["owner_score"] for d in data]
+        decisions = [d["decision"] for d in data]
+        dir_means.append(np.mean(scores))
+        dir_stds.append(np.std(scores, ddof=1) if len(scores) > 1 else 0.0)
+        dir_pass.append(f"{sum(int(bool(d)) for d in decisions)}/{len(decisions)}")
+        acc = _read_acc(rdir)
+        if acc is not None: dir_accs.append(acc)
+
     x = np.arange(len(alphas))
-    color_noniid = "#7CB518"
-    bars = ax.bar(x, dir_means, yerr=dir_stds, capsize=6, width=0.5,
-                   color=color_noniid, edgecolor="white", linewidth=0.8,
-                   error_kw={"lw": 1.2}, label="Non-IID Hadamard")
-
-    # IID reference line
-    ax.axhline(y=iid_mean, color=COLORS["owner"], linestyle="--", linewidth=1.5,
-                label=f"IID reference ({iid_mean:.3f})")
-    ax.axhline(y=THRESHOLD, color=COLORS["threshold"], linestyle=":", linewidth=1.2,
-                alpha=0.6, label=f"Threshold $\\tau$={THRESHOLD}")
-
-    # Pass rate annotations
+    bars = ax1.bar(x, dir_means, yerr=dir_stds, capsize=6, width=0.5,
+                    color="#7CB518", edgecolor="white", linewidth=0.8,
+                    error_kw={"lw": 1.2})
+    ax1.axhline(y=iid_mean, color=COLORS["owner"], linestyle="--", linewidth=1.3,
+                 alpha=0.7)
+    ax1.axhline(y=THRESHOLD, color=COLORS["threshold"], linestyle=":", linewidth=1.2,
+                 alpha=0.6)
     for bar, pr in zip(bars, dir_pass):
         color = COLORS["pass"] if "3/" in pr else COLORS["fail"]
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.04,
-                pr, ha="center", fontsize=9.5, fontweight="bold", color=color)
-
-    # Accuracy annotations
+        ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.04,
+                 pr, ha="center", fontsize=9, fontweight="bold", color=color)
     if len(dir_accs) == len(dir_means):
         for bar, acc in zip(bars, dir_accs):
-            ax.text(bar.get_x() + bar.get_width() / 2, 0.04,
-                    f"{acc:.1f}%", ha="center", fontsize=7.5, color="#666666")
+            ax1.text(bar.get_x() + bar.get_width() / 2, 0.03,
+                     f"{acc:.0f}%", ha="center", fontsize=7, color="#666666")
+    ax1.set_xticks(x)
+    ax1.set_xticklabels([f"$\\alpha$={a}" for a in alphas], fontsize=8.5)
+    ax1.set_ylabel("Mean owner score", fontsize=9)
+    ax1.set_ylim(0, 1.05)
+    ax1.set_title("(a) Dirichlet Label Skew", fontweight="bold", fontsize=9.5)
+    ax1.text(0.98, 0.95, f"IID={iid_mean:.3f}", transform=ax1.transAxes,
+             ha="right", va="top", fontsize=7, color=COLORS["owner"], style="italic")
 
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"$\\alpha$={a}" for a in alphas], fontsize=9)
-    ax.set_ylabel("Mean owner score", fontsize=10)
-    ax.set_ylim(0, 1.05)
-    ax.legend(loc="upper right", fontsize=8)
-    ax.set_title("Non-IID Dirichlet Label Skew (CIFAR-10, Hadamard Codebook)",
-                 fontweight="bold", fontsize=10)
+    # ── Panel (b): Quantity skew ──
+    sigmas = ["0.5", "1.0"]
+    q_means, q_stds, q_pass, q_accs = [], [], [], []
+    for s in sigmas:
+        rdir = os.path.join(RUNS_DIR, f"cifar10-hadamard-quantity-s{s}")
+        if not os.path.isdir(rdir): continue
+        data = _read_run_verifications(rdir)
+        scores = [d["owner_score"] for d in data]
+        decisions = [d["decision"] for d in data]
+        q_means.append(np.mean(scores))
+        q_stds.append(np.std(scores, ddof=1) if len(scores) > 1 else 0.0)
+        q_pass.append(f"{sum(int(bool(d)) for d in decisions)}/{len(decisions)}")
+        acc = _read_acc(rdir)
+        if acc is not None: q_accs.append(acc)
 
+    x2 = np.arange(len(sigmas))
+    bars2 = ax2.bar(x2, q_means, yerr=q_stds, capsize=6, width=0.4,
+                     color="#C73E1D", edgecolor="white", linewidth=0.8,
+                     error_kw={"lw": 1.2})
+    ax2.axhline(y=iid_mean, color=COLORS["owner"], linestyle="--", linewidth=1.3,
+                 alpha=0.7)
+    ax2.axhline(y=THRESHOLD, color=COLORS["threshold"], linestyle=":", linewidth=1.2,
+                 alpha=0.6)
+    for bar, pr in zip(bars2, q_pass):
+        color = COLORS["pass"] if "3/" in pr else COLORS["fail"]
+        ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.04,
+                 pr, ha="center", fontsize=9, fontweight="bold", color=color)
+    if len(q_accs) == len(q_means):
+        for bar, acc in zip(bars2, q_accs):
+            ax2.text(bar.get_x() + bar.get_width() / 2, 0.03,
+                     f"{acc:.0f}%", ha="center", fontsize=7, color="#666666")
+    ax2.set_xticks(x2)
+    ax2.set_xticklabels([f"$\\sigma$={s}" for s in sigmas], fontsize=8.5)
+    ax2.set_ylim(0, 1.05)
+    ax2.set_title("(b) Quantity Skew", fontweight="bold", fontsize=9.5)
+    ax2.text(0.98, 0.95, f"IID={iid_mean:.3f}", transform=ax2.transAxes,
+             ha="right", va="top", fontsize=7, color=COLORS["owner"], style="italic")
+
+    fig.suptitle("Non-IID Sensitivity: Hadamard Codebook (CIFAR-10)",
+                 fontweight="bold", fontsize=11, y=1.02)
     fig.tight_layout()
     save_figure(fig, "figure-04-non-iid")
 
