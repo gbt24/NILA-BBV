@@ -50,6 +50,18 @@ def main() -> None:
     parser.add_argument("--top-k", type=int, required=True)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument(
+        "--mode",
+        choices=["clean-only", "owner-priority"],
+        default="clean-only",
+        help="Bit ranking strategy.",
+    )
+    parser.add_argument(
+        "--max-clean-rate",
+        type=float,
+        default=1.0,
+        help="Discard bits with clean_match_rate above this threshold before ranking.",
+    )
     args = parser.parse_args()
 
     owner_run_dir = Path(args.owner_run_dir)
@@ -62,6 +74,8 @@ def main() -> None:
     code_length = len(expected)
     if args.top_k <= 0 or args.top_k > code_length:
         raise ValueError(f"top_k must be in [1, {code_length}]")
+    if not 0.0 <= args.max_clean_rate <= 1.0:
+        raise ValueError("max_clean_rate must be in [0, 1]")
 
     verification_device = _resolve_verification_device(args.device)
 
@@ -102,23 +116,34 @@ def main() -> None:
             }
         )
 
-    ranked = sorted(bit_stats, key=lambda row: (row["clean_match_rate"], -row["owner_match"], row["bit"]))
+    eligible = [row for row in bit_stats if row["clean_match_rate"] <= args.max_clean_rate]
+    pool = eligible if len(eligible) >= args.top_k else bit_stats
+    if args.mode == "owner-priority":
+        ranked = sorted(pool, key=lambda row: (-row["owner_match"], row["clean_match_rate"], row["bit"]))
+    else:
+        ranked = sorted(pool, key=lambda row: (row["clean_match_rate"], -row["owner_match"], row["bit"]))
     selected_indices = [int(row["bit"]) for row in ranked[: args.top_k]]
+    selected_owner_matches = sum(int(bit_stats[index]["owner_match"]) for index in selected_indices)
 
     payload = {
         "owner_run_dir": str(owner_run_dir),
         "clean_output_root": str(clean_output_root),
         "top_k": args.top_k,
+        "mode": args.mode,
+        "max_clean_rate": args.max_clean_rate,
         "owner_id": str(artifacts["owner_id"]),
         "code_length": code_length,
         "codebook_hash": str(artifacts.get("codebook_hash", "")),
         "selected_indices": selected_indices,
+        "selected_owner_matches": selected_owner_matches,
         "num_clean_runs": clean_n,
         "bit_stats": bit_stats,
     }
     write_json(output_path, payload)
     print(f"Wrote calibration to {output_path}")
     print(f"Selected {len(selected_indices)} / {code_length} bits")
+    print(f"Mode: {args.mode} | owner-matched bits retained: {selected_owner_matches}/{len(selected_indices)}")
+    print(f"Eligible bits under clean-rate ceiling: {len(eligible)}/{code_length}")
 
 
 if __name__ == "__main__":
