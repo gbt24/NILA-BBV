@@ -20,6 +20,7 @@ from bbv.verification.baseline import (
     load_owner_artifacts,
     recover_codeword_from_logits,
 )
+from bbv.watermarking.codebook import generate_codebook
 from bbv.utils.io import write_json
 
 
@@ -52,9 +53,15 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument(
         "--mode",
-        choices=["clean-only", "owner-priority"],
+        choices=["clean-only", "owner-priority", "owner-minus-competitor"],
         default="clean-only",
         help="Bit ranking strategy.",
+    )
+    parser.add_argument(
+        "--competitor-owner-ids",
+        nargs="+",
+        default=["owner1", "owner2", "owner3", "owner4"],
+        help="Competitor owner IDs for owner-minus-competitor mode.",
     )
     parser.add_argument(
         "--max-clean-rate",
@@ -76,6 +83,8 @@ def main() -> None:
         raise ValueError(f"top_k must be in [1, {code_length}]")
     if not 0.0 <= args.max_clean_rate <= 1.0:
         raise ValueError("max_clean_rate must be in [0, 1]")
+    if args.mode == "owner-minus-competitor" and str(artifacts.get("owner_id", "")) in args.competitor_owner_ids:
+        raise ValueError("owner must not appear in --competitor-owner-ids")
 
     verification_device = _resolve_verification_device(args.device)
 
@@ -87,6 +96,18 @@ def main() -> None:
     )
     owner_recovered = recover_codeword_from_logits(owner_logits)
     owner_match = [int(a == b) for a, b in zip(owner_recovered, expected)]
+
+    competitor_match_rate: list[float] = [0.0] * code_length
+    if args.mode == "owner-minus-competitor":
+        run_meta = json.loads((owner_run_dir / "run_metadata.json").read_text())
+        cb_seed = int(run_meta["seed"])
+        competitor_codebooks = [
+            generate_codebook(owner_id=cid, code_length=code_length, seed=cb_seed)
+            for cid in args.competitor_owner_ids
+        ]
+        for i in range(code_length):
+            comp_hits = sum(int(owner_recovered[i] == cb[i]) for cb in competitor_codebooks)
+            competitor_match_rate[i] = comp_hits / len(competitor_codebooks)
 
     clean_runs = _latest_runs_by_seed(clean_output_root)
     if not clean_runs:
@@ -113,23 +134,32 @@ def main() -> None:
                 "bit": i,
                 "clean_match_rate": clean_rate,
                 "owner_match": owner_match[i],
+                "competitor_match_rate": competitor_match_rate[i],
             }
         )
 
     eligible = [row for row in bit_stats if row["clean_match_rate"] <= args.max_clean_rate]
     pool = eligible if len(eligible) >= args.top_k else bit_stats
-    if args.mode == "owner-priority":
+    if args.mode == "owner-minus-competitor":
+        ranked = sorted(pool, key=lambda row: (
+            -(row["owner_match"] - row["competitor_match_rate"]),
+            row["clean_match_rate"],
+            row["bit"],
+        ))
+    elif args.mode == "owner-priority":
         ranked = sorted(pool, key=lambda row: (-row["owner_match"], row["clean_match_rate"], row["bit"]))
     else:
         ranked = sorted(pool, key=lambda row: (row["clean_match_rate"], -row["owner_match"], row["bit"]))
     selected_indices = [int(row["bit"]) for row in ranked[: args.top_k]]
     selected_owner_matches = sum(int(bit_stats[index]["owner_match"]) for index in selected_indices)
+    selected_comp_hits = sum(bit_stats[index]["competitor_match_rate"] for index in selected_indices) * len(args.competitor_owner_ids)
 
     payload = {
         "owner_run_dir": str(owner_run_dir),
         "clean_output_root": str(clean_output_root),
         "top_k": args.top_k,
         "mode": args.mode,
+        "competitor_owner_ids": list(args.competitor_owner_ids),
         "max_clean_rate": args.max_clean_rate,
         "owner_id": str(artifacts["owner_id"]),
         "code_length": code_length,
@@ -143,6 +173,9 @@ def main() -> None:
     print(f"Wrote calibration to {output_path}")
     print(f"Selected {len(selected_indices)} / {code_length} bits")
     print(f"Mode: {args.mode} | owner-matched bits retained: {selected_owner_matches}/{len(selected_indices)}")
+    if args.mode == "owner-minus-competitor":
+        avg_comp_rate = selected_comp_hits / (len(selected_indices) * len(args.competitor_owner_ids)) if len(selected_indices) > 0 else 0
+        print(f"Competitor match rate on selected bits: {avg_comp_rate:.3f}")
     print(f"Eligible bits under clean-rate ceiling: {len(eligible)}/{code_length}")
 
 
