@@ -46,6 +46,8 @@ def _find_latest_run_dir(output_root: Path, owner_id: str | None = None) -> Path
 @hydra.main(version_base=None, config_path="../../configs/eval", config_name="main")
 def main(cfg: DictConfig) -> None:
     output_root = Path(cfg.output_root)
+    explicit_run_dir = cfg.get("run_dir")
+    selected_indices_path = cfg.get("selected_indices_path")
     progress_steps = progress_iterable(
         ["locate_run", "verify"],
         description="Verification",
@@ -53,10 +55,27 @@ def main(cfg: DictConfig) -> None:
         leave=True,
     )
     next(progress_steps)
-    run_dir = _find_latest_run_dir(output_root, owner_id=str(cfg.owner.id))
+    run_dir = Path(str(explicit_run_dir)) if explicit_run_dir else _find_latest_run_dir(output_root, owner_id=str(cfg.owner.id))
     checkpoint_path = run_dir / "best_checkpoint.pt"
     if not checkpoint_path.exists():
         checkpoint_path = run_dir / "checkpoint.pt"
+    selected_indices = None
+    if selected_indices_path is not None:
+        payload = json.loads(Path(str(selected_indices_path)).read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            artifacts_payload = json.loads((run_dir / "owner_artifacts.json").read_text(encoding="utf-8"))
+            owner_id = str(artifacts_payload["owner_id"])
+            code_length = len(artifacts_payload["codebook"])
+            codebook_hash = str(artifacts_payload.get("codebook_hash", ""))
+            if str(payload.get("owner_id", owner_id)) != owner_id:
+                raise ValueError("selected_indices payload owner_id does not match run artifacts")
+            if int(payload.get("code_length", code_length)) != code_length:
+                raise ValueError("selected_indices payload code_length does not match run artifacts")
+            if codebook_hash and str(payload.get("codebook_hash", codebook_hash)) != codebook_hash:
+                raise ValueError("selected_indices payload codebook_hash does not match run artifacts")
+            selected_indices = list(payload["selected_indices"])
+        else:
+            selected_indices = list(payload)
     next(progress_steps)
     summary = run_verification_from_checkpoint(
         checkpoint_path=checkpoint_path,
@@ -72,6 +91,7 @@ def main(cfg: DictConfig) -> None:
         batch_size=int(cfg.verification.get("batch_size", 16)),
         expected_owner_id=str(cfg.owner.id),
         device=str(cfg.device),
+        selected_indices=selected_indices,
     )
     print(f"Verification run directory: {run_dir}")
     print(f"Owner score: {summary['owner_score']}")

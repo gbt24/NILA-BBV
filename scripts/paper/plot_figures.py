@@ -175,20 +175,20 @@ def plot_fig1_framework():
 
     modules = [
         (0.55, 3.45, 2.45, 1.55, "Codebook & Queries", [
-            r"Owner codeword $\mathbf{c}_i$",
-            r"Query set $Q_i$",
-            r"Diagnostic negative set $Q_i^-$",
-        ], "In: auxiliary data", r"Out: $\{\mathbf{c}_i,Q_i,Q_i^-\}$", "train"),
+            "Owner codeword",
+            "Positive queries",
+            "Negative diagnostic queries",
+        ], "In: auxiliary data", "Out: codebook + query sets", "train"),
         (3.45, 3.45, 2.45, 1.55, "Non-IID Scoring", [
             r"Gradient conflict",
             r"Label coverage",
             r"Client score $a_k$",
         ], "In: client statistics", "Out: allocation weights", "train"),
         (6.35, 3.45, 2.45, 1.55, "Adaptive Embedding", [
-            r"FL training with $\mathcal{L}_{wm}$",
+            "FL watermark training",
             r"Client-specific weights",
-            r"Aggregate model $\theta$",
-        ], "In: codebook, $a_k$", "Out: watermarked $\theta$", "train"),
+            "Aggregate global model",
+        ], "In: codebook, client scores", "Out: watermarked model", "train"),
         (9.25, 3.45, 2.05, 1.55, "Commitment", [
             r"Owner ID",
             r"Codebook hash",
@@ -196,13 +196,13 @@ def plot_fig1_framework():
         ], "In: evidence metadata", "Out: audit record", "train"),
         (1.55, 0.65, 3.05, 1.55, "Black-box Querying", [
             r"Query suspicious model",
-            r"Recover codeword $\hat{\mathbf{c}}_i$",
-            r"Compute owner score $s_i$",
-        ], "In: model API, $Q_i$", "Out: scores", "verify"),
+            "Recover owner codeword",
+            "Compute owner score",
+        ], "In: model API, positive queries", "Out: scores", "verify"),
         (6.65, 0.65, 3.65, 1.55, "Margin Decision", [
-            r"Threshold: $s_i \geq \tau$",
-            r"Margin: $s_i - \max_{j\ne i}s_j \geq \gamma$",
-            r"Verify / Reject / Ambiguous",
+            "Threshold on owner score",
+            "Margin vs. strongest competitor",
+            "Verify / Reject / Ambiguous",
         ], "In: scores, commitment", "Out: ownership decision", "verify"),
     ]
 
@@ -223,7 +223,7 @@ def plot_fig1_framework():
                  xytext=(x_theta, y_top - 0.06),
                  arrowprops=dict(arrowstyle="->", color="#B91C1C", lw=2.2,
                                  connectionstyle="arc3,rad=-0.28"))
-    ax.text(4.8, 2.85, r"Model API $\theta$",
+    ax.text(4.8, 2.85, "Watermarked model",
             ha="left", va="center", fontsize=9, fontweight="bold",
             color="#B91C1C")
 
@@ -887,13 +887,17 @@ def plot_fig8_fpr():
                              "fpr_evaluation_report_single-trigger.json")
     multicb_dir = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
                                "reports_multicodebook")
+    hadamard_dir = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
+                                "reports_hadamard")
+    hadamard_report = os.path.join(RUNS_DIR, "cifar10-fpr-nonowners",
+                                   "fpr_evaluation_report_hadamard.json")
 
     owner_data_file = os.path.join(RUNS_DIR, "cifar10-hadamard")
     owner_data = _read_run_verifications(owner_data_file)
     owner_scores = [d["owner_score"] for d in owner_data] if owner_data else []
     owner_mean = np.mean(owner_scores) if owner_scores else 0.73
 
-    # Pool multi-codebook results
+    # Pool random multi-codebook results
     clean_mb_all = []
     total_fp = 0
     total_n = 0
@@ -905,18 +909,37 @@ def plot_fig8_fpr():
             total_fp += sum(1 for r in rmb.get("per_seed_results", []) if r.get("passed"))
             total_n += len(rmb.get("per_seed_results", []))
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 4.2))
+    # Pool Hadamard results
+    clean_h_all = []
+    total_fp_h = 0
+    total_n_h = 0
+    if os.path.isdir(hadamard_dir):
+        for p in sorted(Path(hadamard_dir).glob("fpr_hadamard_seed*.json")):
+            rh = json.loads(p.read_text())
+            scores = [r["owner_score"] for r in rh.get("per_seed_results", [])]
+            clean_h_all.extend(scores)
+            total_fp_h += sum(1 for r in rh.get("per_seed_results", []) if r.get("passed"))
+            total_n_h += len(rh.get("per_seed_results", []))
+    if not clean_h_all and os.path.exists(hadamard_report):
+        with open(hadamard_report) as f:
+            rh = json.load(f)
+        scores = [r["owner_score"] for r in rh.get("per_seed_results", [])]
+        clean_h_all.extend(scores)
+        total_fp_h += sum(1 for r in rh.get("per_seed_results", []) if r.get("passed"))
+        total_n_h += len(rh.get("per_seed_results", []))
+
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14.5, 4.2))
     bins = np.linspace(-0.1, 1.05, 32)
 
-    # Left: Multi-bit FPR histogram (pooled over 10 codebooks)
+    # Left: Random multi-bit FPR histogram
     if clean_mb_all:
         ax1.hist(clean_mb_all, bins=bins, color=COLORS["competitor"], alpha=0.6,
                  edgecolor="gray", linewidth=0.8,
                  label=f"Clean models (n={len(clean_mb_all)})")
-        ax1.set_title(f"(a) Multi-bit Pooled FPR = {total_fp}/{total_n} ({total_fp/total_n:.3f})",
+        ax1.set_title(f"(a) Random Multi-bit FPR = {total_fp}/{total_n} ({total_fp/total_n:.3f})",
                       fontweight="bold", fontsize=10)
     else:
-        ax1.set_title("(a) Multi-bit (reports missing)", fontweight="bold", fontsize=10)
+        ax1.set_title("(a) Random multi-bit (reports missing)", fontweight="bold", fontsize=10)
 
     for s in owner_scores:
         ax1.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.5, linewidth=1.2)
@@ -928,29 +951,52 @@ def plot_fig8_fpr():
     ax1.set_xlim(-0.1, 1.05)
     ax1.legend(fontsize=7.5, loc="upper left")
 
+    # Middle: Hadamard FPR histogram
+    if clean_h_all:
+        ax2.hist(clean_h_all, bins=bins, color=COLORS["adaptive"], alpha=0.6,
+                 edgecolor="gray", linewidth=0.8,
+                 label=f"Clean models (n={len(clean_h_all)})")
+        ax2.set_title(f"(b) Hadamard FPR = {total_fp_h}/{total_n_h} ({total_fp_h/total_n_h:.3f})",
+                      fontweight="bold", fontsize=10)
+    else:
+        ax2.set_title("(b) Hadamard (reports missing)", fontweight="bold", fontsize=10)
+
+    for s in owner_scores:
+        ax2.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.5, linewidth=1.2)
+    ax2.axvline(x=owner_mean, color=COLORS["owner"], linestyle="-", linewidth=2.0)
+    ax2.axvline(x=THRESHOLD, color=COLORS["threshold"], linestyle="-", linewidth=1.5,
+                label=f"$\\tau={THRESHOLD}$")
+    ax2.set_xlabel("Owner Score $s_i$", fontsize=10)
+    ax2.set_ylabel("Count", fontsize=10)
+    ax2.set_xlim(-0.1, 1.05)
+    ax2.legend(fontsize=7.5, loc="upper left")
+
     # Right: Single-trigger FPR histogram
     if os.path.exists(report_st):
         with open(report_st) as f:
             rst = json.load(f)
         clean_st = [r["owner_score"] for r in rst.get("per_seed_results", [])]
         npass = sum(1 for r in rst.get("per_seed_results", []) if r.get("passed"))
-        ax2.hist(clean_st, bins=bins, color=COLORS["fail"], alpha=0.6,
+        ax3.hist(clean_st, bins=bins, color=COLORS["fail"], alpha=0.6,
                  edgecolor="gray", linewidth=0.8,
                  label=f"Clean models (n={len(clean_st)})")
-        ax2.set_title(f"(b) Single-trigger Codebook FPR = {npass}/{len(clean_st)}",
-                      fontweight="bold", fontsize=10)
+        if clean_st:
+            ax3.set_title(f"(c) Single-trigger FPR = {npass}/{len(clean_st)} ({npass/len(clean_st):.3f})",
+                          fontweight="bold", fontsize=10)
+        else:
+            ax3.set_title("(c) Single-trigger (no data)", fontweight="bold", fontsize=10)
     else:
-        ax2.set_title("(b) Single-trigger (report missing)", fontweight="bold", fontsize=10)
+        ax3.set_title("(c) Single-trigger (report missing)", fontweight="bold", fontsize=10)
 
     for s in owner_scores:
-        ax2.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.3, linewidth=1.2)
-    ax2.axvline(x=THRESHOLD, color=COLORS["threshold"], linestyle="-", linewidth=1.5)
-    ax2.set_xlabel("Owner Score $s_i$", fontsize=10)
-    ax2.set_ylabel("Count", fontsize=10)
-    ax2.set_xlim(-0.1, 1.05)
-    ax2.legend(fontsize=7.5, loc="upper left")
+        ax3.axvline(x=s, color=COLORS["owner"], linestyle="--", alpha=0.3, linewidth=1.2)
+    ax3.axvline(x=THRESHOLD, color=COLORS["threshold"], linestyle="-", linewidth=1.5)
+    ax3.set_xlabel("Owner Score $s_i$", fontsize=10)
+    ax3.set_ylabel("Count", fontsize=10)
+    ax3.set_xlim(-0.1, 1.05)
+    ax3.legend(fontsize=7.5, loc="upper left")
 
-    fig.suptitle("Empirical FPR Validation: Multi-bit vs Single-trigger (CIFAR-10, $m=64$, 10 codebooks $\\times$ 20 clean models)",
+    fig.suptitle("Empirical FPR Validation Across Codebook Families (CIFAR-10, $m=64$, pooled clean-model evaluation)",
                  fontweight="bold", fontsize=11, y=1.02)
     fig.tight_layout()
     save_figure(fig, "figure-08-fpr-evaluation")

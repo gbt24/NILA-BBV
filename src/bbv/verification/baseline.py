@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TypeVar
 
 import torch
 
@@ -16,6 +17,9 @@ from bbv.verification.query import (
     query_model_logits,
 )
 from bbv.watermarking import generate_codebook, load_owner_artifacts
+
+
+T = TypeVar("T")
 
 
 def _resolve_verification_device(device: str) -> torch.device:
@@ -79,6 +83,33 @@ def compute_negative_asr(negative_codebook: list[int], neg_recovered: list[int])
     expected = negative_codebook[: len(neg_recovered)]
     matches = sum(int(left == right) for left, right in zip(expected, neg_recovered, strict=False))
     return matches / len(neg_recovered)
+
+
+def _select_by_indices(items: list[T], selected_indices: list[int] | None) -> list[T]:
+    if selected_indices is None:
+        return items
+    return [items[index] for index in selected_indices]
+
+
+def _normalize_selected_indices(
+    selected_indices: list[int] | None,
+    code_length: int,
+) -> list[int] | None:
+    if selected_indices is None:
+        return None
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for raw in selected_indices:
+        index = int(raw)
+        if index < 0 or index >= code_length:
+            raise ValueError(f"selected index {index} is out of range for code length {code_length}")
+        if index in seen:
+            continue
+        normalized.append(index)
+        seen.add(index)
+    if not normalized:
+        raise ValueError("selected_indices must not be empty")
+    return normalized
 
 
 def verify_owner(
@@ -158,6 +189,7 @@ def run_verification_from_checkpoint(
     negative_weight: float = 0.2,
     expected_owner_id: str | None = None,
     device: str = "auto",
+    selected_indices: list[int] | None = None,
 ) -> dict[str, object]:
     if query_budget is not None and query_budget <= 0:
         raise ValueError("query_budget must be greater than 0")
@@ -173,13 +205,21 @@ def run_verification_from_checkpoint(
     artifacts = load_owner_artifacts(artifacts_path)
     if expected_owner_id is not None and str(artifacts["owner_id"]) != expected_owner_id:
         raise ValueError("owner_id does not match verification artifacts")
-    expected = [int(bit) for bit in artifacts["codebook"]]
+    expected_full = [int(bit) for bit in artifacts["codebook"]]
+    selected_indices = _normalize_selected_indices(selected_indices, len(expected_full))
+    expected = _select_by_indices(expected_full, selected_indices)
     pos_queries = [
         torch.tensor(sample, dtype=torch.float32)
         for sample in artifacts["positive_queries"]
     ]
     neg_queries_raw = artifacts.get("negative_queries", [])
     neg_queries = [torch.tensor(sample, dtype=torch.float32) for sample in neg_queries_raw]
+    if len(pos_queries) != len(expected_full):
+        raise ValueError("positive_queries length does not match codebook length")
+    if neg_queries and len(neg_queries) != len(expected_full):
+        raise ValueError("negative_queries length does not match codebook length")
+    pos_queries = _select_by_indices(pos_queries, selected_indices)
+    neg_queries = _select_by_indices(neg_queries, selected_indices) if neg_queries else []
     negative_codebook = [1 - bit for bit in expected]
 
     verification_device = _resolve_verification_device(device)
@@ -251,11 +291,12 @@ def run_verification_from_checkpoint(
     for competitor_id in competitor_owner_ids:
         competitor_full_codebook = generate_codebook(
             owner_id=competitor_id,
-            code_length=len(expected),
+            code_length=len(expected_full),
             seed=seed,
         )
-        competitor_codebook = competitor_full_codebook[: len(expected_for_scoring)]
-        competitor_negative_codebook = [1 - bit for bit in competitor_full_codebook]
+        competitor_selected_codebook = _select_by_indices(competitor_full_codebook, selected_indices)
+        competitor_codebook = competitor_selected_codebook[: len(expected_for_scoring)]
+        competitor_negative_codebook = [1 - bit for bit in competitor_selected_codebook]
         competitor_negative_asr = compute_negative_asr(
             competitor_negative_codebook,
             neg_recovered if neg_queries else [],

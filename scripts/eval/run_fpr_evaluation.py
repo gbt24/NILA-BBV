@@ -88,6 +88,16 @@ def main(cfg: DictConfig) -> None:
     competitor_ids = list(cfg.get("competitor_owner_ids", ["owner1", "owner2", "owner3", "owner4"]))
     code_length = int(cfg.watermarking.code_length)
     skip_training = bool(cfg.get("skip_training", False))
+    selected_indices_path = cfg.get("selected_indices_path")
+    selected_indices = None
+    selected_indices_payload = None
+    if selected_indices_path is not None:
+        payload = _json.loads(Path(str(selected_indices_path)).read_text(encoding="utf-8"))
+        selected_indices_payload = payload if isinstance(payload, dict) else None
+        if isinstance(payload, dict):
+            selected_indices = list(payload["selected_indices"])
+        else:
+            selected_indices = list(payload)
 
     if not skip_training:
         print(f"Training {num_nonowners} non-owner models on {dataset}...")
@@ -125,6 +135,11 @@ def main(cfg: DictConfig) -> None:
     # Build artifacts once for all clean models (same codebook, seed=0)
     artifacts = _build_fake_artifacts("owner0", code_length, codebook_seed, codebook_type)
     owner_codebook_hash = artifacts["codebook_hash"]
+    if selected_indices_payload is not None:
+        if int(selected_indices_payload.get("code_length", code_length)) != code_length:
+            raise ValueError("selected_indices payload code_length does not match FPR artifacts")
+        if str(selected_indices_payload.get("codebook_hash", owner_codebook_hash)) != owner_codebook_hash:
+            raise ValueError("selected_indices payload codebook_hash does not match FPR artifacts")
     artifacts_path = output_root / "_fpr_artifacts.json"
     write_json(artifacts_path, artifacts)
 
@@ -162,6 +177,7 @@ def main(cfg: DictConfig) -> None:
             hard_label_only=True,
             negative_weight=negative_weight,
             device=str(cfg.device),
+            selected_indices=selected_indices,
         )
         passed = summary["decision"]
         results.append({
