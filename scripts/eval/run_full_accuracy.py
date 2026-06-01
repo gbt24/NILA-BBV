@@ -13,6 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from bbv.datasets.loaders import load_dataset
+from bbv.federated.evaluate import evaluate_accuracy
 from bbv.models import build_model
 
 
@@ -26,22 +27,6 @@ def _resolve_verification_file(run_dir: Path):
         if path.exists():
             return path
     return None
-
-
-def evaluate_accuracy(model: torch.nn.Module, loader: DataLoader, device: torch.device) -> float:
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for features, labels in loader:
-            features = features.to(device)
-            labels = labels.to(device)
-            logits = model(features)
-            preds = logits.argmax(dim=1)
-            correct += (preds == labels).sum().item()
-            total += labels.size(0)
-    return correct / total if total > 0 else 0.0
-
 
 def evaluate_single_checkpoint(
     checkpoint_path: Path,

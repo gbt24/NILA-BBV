@@ -1,5 +1,8 @@
 from pathlib import Path
 import json
+from types import SimpleNamespace
+
+import torch
 
 from bbv.attacks import run_attack
 from bbv.federated import train_federated
@@ -7,7 +10,34 @@ from bbv.verification import run_verification_from_checkpoint
 from bbv.watermarking import build_negative_queries, build_positive_queries, generate_codebook, save_owner_artifacts
 
 
-def test_attack_outputs_keep_verification_chain_alive(tmp_path: Path) -> None:
+def _patch_fake_dataset(monkeypatch, *, train_size: int = 40, test_size: int = 16) -> None:
+    class FakeDataset:
+        def __init__(self, size: int) -> None:
+            self.classes = [str(index) for index in range(10)]
+            self.targets = [index % 10 for index in range(size)]
+
+        def __len__(self) -> int:
+            return len(self.targets)
+
+        def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+            return torch.zeros(3, 32, 32), int(self.targets[index])
+
+    def fake_load_dataset(*, name: str, root: Path, train: bool, download: bool):
+        size = train_size if train else test_size
+        return SimpleNamespace(
+            dataset_name=name,
+            split_name="train" if train else "test",
+            train=train,
+            num_classes=10,
+            num_samples=size,
+            dataset=FakeDataset(size),
+        )
+
+    monkeypatch.setattr("bbv.federated.fedavg.load_dataset", fake_load_dataset, raising=False)
+
+
+def test_attack_outputs_keep_verification_chain_alive(monkeypatch, tmp_path: Path) -> None:
+    _patch_fake_dataset(monkeypatch)
     train_result = train_federated(
         output_root=tmp_path / "runs",
         seed=0,
@@ -20,7 +50,6 @@ def test_attack_outputs_keep_verification_chain_alive(tmp_path: Path) -> None:
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=12,
     )
     codebook = generate_codebook(owner_id="owner0", code_length=8, seed=0)
     artifacts = train_result.run_dir / "owner_artifacts.json"
@@ -54,7 +83,10 @@ def test_attack_outputs_keep_verification_chain_alive(tmp_path: Path) -> None:
     assert (attack_result.output_dir / "verification_after_attack.json").exists()
 
 
-def test_attack_outputs_preserve_checkpoint_metadata_for_verification(tmp_path: Path) -> None:
+def test_attack_outputs_preserve_checkpoint_metadata_for_verification(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _patch_fake_dataset(monkeypatch)
     train_result = train_federated(
         output_root=tmp_path / "runs",
         seed=0,
@@ -67,7 +99,6 @@ def test_attack_outputs_preserve_checkpoint_metadata_for_verification(tmp_path: 
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=12,
     )
     codebook = generate_codebook(owner_id="owner0", code_length=8, seed=0)
     artifacts = train_result.run_dir / "owner_artifacts.json"

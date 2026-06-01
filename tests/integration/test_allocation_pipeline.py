@@ -1,10 +1,42 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
+
+import torch
 
 from bbv.federated import train_federated
 
 
-def test_allocation_pipeline_writes_assignment_logs_when_enabled(tmp_path: Path) -> None:
+def _patch_fake_dataset(monkeypatch, *, train_size: int = 40, test_size: int = 16) -> None:
+    class FakeDataset:
+        def __init__(self, size: int) -> None:
+            self.classes = [str(index) for index in range(10)]
+            self.targets = [index % 10 for index in range(size)]
+
+        def __len__(self) -> int:
+            return len(self.targets)
+
+        def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+            return torch.zeros(3, 32, 32), int(self.targets[index])
+
+    def fake_load_dataset(*, name: str, root: Path, train: bool, download: bool):
+        size = train_size if train else test_size
+        return SimpleNamespace(
+            dataset_name=name,
+            split_name="train" if train else "test",
+            train=train,
+            num_classes=10,
+            num_samples=size,
+            dataset=FakeDataset(size),
+        )
+
+    monkeypatch.setattr("bbv.federated.fedavg.load_dataset", fake_load_dataset, raising=False)
+
+
+def test_allocation_pipeline_writes_assignment_logs_when_enabled(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _patch_fake_dataset(monkeypatch)
     result = train_federated(
         output_root=tmp_path / "outputs",
         seed=0,
@@ -17,7 +49,6 @@ def test_allocation_pipeline_writes_assignment_logs_when_enabled(tmp_path: Path)
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=12,
         allocation_enabled=True,
         allocation_budget_ratio=0.4,
         allocation_base_loss_weight=0.15,
@@ -30,7 +61,8 @@ def test_allocation_pipeline_writes_assignment_logs_when_enabled(tmp_path: Path)
     assert payload["config"]["enabled"] is True
 
 
-def test_allocation_pipeline_keeps_baseline_when_disabled(tmp_path: Path) -> None:
+def test_allocation_pipeline_keeps_baseline_when_disabled(monkeypatch, tmp_path: Path) -> None:
+    _patch_fake_dataset(monkeypatch)
     result = train_federated(
         output_root=tmp_path / "outputs",
         seed=0,
@@ -43,7 +75,6 @@ def test_allocation_pipeline_keeps_baseline_when_disabled(tmp_path: Path) -> Non
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=12,
         allocation_enabled=False,
         allocation_budget_ratio=0.5,
         allocation_base_loss_weight=0.2,

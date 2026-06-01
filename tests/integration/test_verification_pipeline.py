@@ -1,4 +1,7 @@
 from pathlib import Path
+from types import SimpleNamespace
+
+import torch
 
 from bbv.federated import train_federated
 from bbv.verification import run_verification_from_checkpoint
@@ -10,7 +13,36 @@ from bbv.watermarking import (
 )
 
 
-def test_verification_pipeline_exports_summary_and_calibration(tmp_path: Path) -> None:
+def _patch_fake_dataset(monkeypatch, *, train_size: int = 40, test_size: int = 16) -> None:
+    class FakeDataset:
+        def __init__(self, size: int) -> None:
+            self.classes = [str(index) for index in range(10)]
+            self.targets = [index % 10 for index in range(size)]
+
+        def __len__(self) -> int:
+            return len(self.targets)
+
+        def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+            return torch.zeros(3, 32, 32), int(self.targets[index])
+
+    def fake_load_dataset(*, name: str, root: Path, train: bool, download: bool):
+        size = train_size if train else test_size
+        return SimpleNamespace(
+            dataset_name=name,
+            split_name="train" if train else "test",
+            train=train,
+            num_classes=10,
+            num_samples=size,
+            dataset=FakeDataset(size),
+        )
+
+    monkeypatch.setattr("bbv.federated.fedavg.load_dataset", fake_load_dataset, raising=False)
+
+
+def test_verification_pipeline_exports_summary_and_calibration(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _patch_fake_dataset(monkeypatch)
     train_result = train_federated(
         output_root=tmp_path / "outputs",
         seed=0,
@@ -23,7 +55,6 @@ def test_verification_pipeline_exports_summary_and_calibration(tmp_path: Path) -
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=12,
     )
 
     codebook = generate_codebook(owner_id="owner0", code_length=8, seed=0)
@@ -57,7 +88,10 @@ def test_verification_pipeline_exports_summary_and_calibration(tmp_path: Path) -
     assert (train_result.run_dir / "calibration_artifacts.json").exists()
 
 
-def test_verification_budget_reserves_negative_evidence_queries(tmp_path: Path) -> None:
+def test_verification_budget_reserves_negative_evidence_queries(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _patch_fake_dataset(monkeypatch)
     train_result = train_federated(
         output_root=tmp_path / "outputs",
         seed=0,
@@ -70,7 +104,6 @@ def test_verification_budget_reserves_negative_evidence_queries(tmp_path: Path) 
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=12,
     )
 
     codebook = generate_codebook(owner_id="owner0", code_length=8, seed=0)
@@ -103,7 +136,10 @@ def test_verification_budget_reserves_negative_evidence_queries(tmp_path: Path) 
     assert result["negative_asr"] >= 0.0
 
 
-def test_verification_budget_reallocates_unused_negative_capacity(tmp_path: Path) -> None:
+def test_verification_budget_reallocates_to_positive_queries_when_negative_set_is_empty(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _patch_fake_dataset(monkeypatch)
     train_result = train_federated(
         output_root=tmp_path / "outputs",
         seed=0,
@@ -116,7 +152,6 @@ def test_verification_budget_reallocates_unused_negative_capacity(tmp_path: Path
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=12,
     )
 
     codebook = generate_codebook(owner_id="owner0", code_length=8, seed=0)
@@ -127,7 +162,7 @@ def test_verification_budget_reallocates_unused_negative_capacity(tmp_path: Path
         owner_id="owner0",
         codebook=codebook,
         queries=pos_queries,
-        negative_queries=[build_negative_queries(codebook=codebook, seed=0)[0]],
+        negative_queries=[],
     )
 
     result = run_verification_from_checkpoint(
@@ -142,4 +177,5 @@ def test_verification_budget_reallocates_unused_negative_capacity(tmp_path: Path
         query_budget=4,
     )
 
-    assert result["queried_positive_count"] + result["queried_negative_count"] == 4
+    assert result["queried_positive_count"] == 4
+    assert result["queried_negative_count"] == 0

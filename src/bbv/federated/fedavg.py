@@ -219,7 +219,6 @@ def _validate_inputs(
     local_epochs: int,
     batch_size: int,
     learning_rate: float,
-    samples_per_client: int,
     allocation_budget_ratio: float,
     allocation_base_loss_weight: float,
 ) -> None:
@@ -235,8 +234,6 @@ def _validate_inputs(
         raise ValueError("batch_size must be greater than 0")
     if learning_rate <= 0.0:
         raise ValueError("learning_rate must be greater than 0")
-    if samples_per_client <= 0:
-        raise ValueError("samples_per_client must be greater than 0")
     if allocation_budget_ratio < 0.0 or allocation_budget_ratio > 1.0:
         raise ValueError("allocation_budget_ratio must be in [0, 1]")
     if allocation_base_loss_weight < 0.0:
@@ -263,36 +260,25 @@ def _build_partition_from_natural_clients(
     labels: list[int],
     natural_client_indices: list[list[int]],
     num_clients: int,
-    samples_per_client: int,
     seed: int,
 ) -> tuple[PartitionResult, list[int]]:
-    eligible_client_ids = [
-        client_id
-        for client_id, indices in enumerate(natural_client_indices)
-        if len(indices) >= samples_per_client
-    ]
-    if len(eligible_client_ids) < num_clients:
-        raise ValueError("natural split does not provide enough clients with sufficient samples")
+    if len(natural_client_indices) < num_clients:
+        raise ValueError("natural split does not provide enough clients")
 
     generator = torch.Generator().manual_seed(seed)
-    sampled_positions = torch.randperm(len(eligible_client_ids), generator=generator).tolist()[:num_clients]
-    selected_client_ids = [eligible_client_ids[position] for position in sampled_positions]
-    sampled_indices: list[int] = []
-    client_indices: list[list[int]] = []
+    natural_order = torch.randperm(len(natural_client_indices), generator=generator).tolist()
+    client_indices: list[list[int]] = [[] for _ in range(num_clients)]
     histograms: list[dict[str, int]] = []
 
-    for client_id in selected_client_ids:
-        raw_indices = sorted(natural_client_indices[client_id])
-        if len(raw_indices) < samples_per_client:
-            raise ValueError(
-                "samples_per_client exceeds available samples for a natural-split client"
-            )
-        selected_indices = raw_indices[:samples_per_client]
-        client_indices.append(selected_indices)
-        sampled_indices.extend(selected_indices)
+    for offset, client_id in enumerate(natural_order):
+        client_indices[offset % num_clients].extend(sorted(natural_client_indices[client_id]))
 
+    normalized_indices = [sorted(indices) for indices in client_indices]
+    sampled_indices = sorted(index for indices in normalized_indices for index in indices)
+
+    for indices in normalized_indices:
         histogram: dict[str, int] = {}
-        for index in selected_indices:
+        for index in indices:
             label = str(int(labels[index]))
             histogram[label] = histogram.get(label, 0) + 1
         histograms.append(histogram)
@@ -300,12 +286,12 @@ def _build_partition_from_natural_clients(
     partition = PartitionResult(
         method_name="natural",
         partition_type="natural",
-        partition_params={"source": "natural_client_indices"},
+        partition_params={"source": "natural_client_indices", "merge_strategy": "round_robin"},
         seed=seed,
         num_clients=num_clients,
         total_samples=len(sampled_indices),
-        client_indices=client_indices,
-        client_sample_counts=[len(indices) for indices in client_indices],
+        client_indices=normalized_indices,
+        client_sample_counts=[len(indices) for indices in normalized_indices],
         client_label_histograms=histograms,
     )
     return partition, sampled_indices
@@ -382,51 +368,6 @@ def _compute_client_allocation_stats(
     )
 
 
-def _enforce_client_sample_budget(
-    *,
-    partition: PartitionResult,
-    labels: list[int],
-    samples_per_client: int,
-) -> PartitionResult:
-    target_total = partition.num_clients * samples_per_client
-    if len(labels) < target_total:
-        raise ValueError(
-            "samples_per_client requires at least num_clients * samples_per_client "
-            "dataset samples"
-        )
-
-    client_indices = [list(indices) for indices in partition.client_indices]
-    overflow: list[int] = []
-    for indices in client_indices:
-        while len(indices) > samples_per_client:
-            overflow.append(indices.pop())
-
-    for indices in client_indices:
-        while len(indices) < samples_per_client:
-            indices.append(overflow.pop())
-
-    normalized_indices = [sorted(indices) for indices in client_indices]
-    histograms: list[dict[str, int]] = []
-    for indices in normalized_indices:
-        counts: dict[str, int] = {}
-        for index in indices:
-            label = str(int(labels[index]))
-            counts[label] = counts.get(label, 0) + 1
-        histograms.append(counts)
-
-    return PartitionResult(
-        method_name=partition.method_name,
-        partition_type=partition.partition_type,
-        partition_params=partition.partition_params,
-        seed=partition.seed,
-        num_clients=partition.num_clients,
-        total_samples=len(labels),
-        client_indices=normalized_indices,
-        client_sample_counts=[len(indices) for indices in normalized_indices],
-        client_label_histograms=histograms,
-    )
-
-
 def _enforce_minimum_client_samples(
     *, partition: PartitionResult, labels: list[int], minimum_samples: int
 ) -> PartitionResult:
@@ -444,35 +385,6 @@ def _enforce_minimum_client_samples(
         client_indices[receiver_index].append(client_indices[donor_index].pop())
 
     normalized_indices = [sorted(indices) for indices in client_indices]
-    histograms: list[dict[str, int]] = []
-    for indices in normalized_indices:
-        counts: dict[str, int] = {}
-        for index in indices:
-            label = str(int(labels[index]))
-            counts[label] = counts.get(label, 0) + 1
-        histograms.append(counts)
-
-    return PartitionResult(
-        method_name=partition.method_name,
-        partition_type=partition.partition_type,
-        partition_params=partition.partition_params,
-        seed=partition.seed,
-        num_clients=partition.num_clients,
-        total_samples=partition.total_samples,
-        client_indices=normalized_indices,
-        client_sample_counts=[len(indices) for indices in normalized_indices],
-        client_label_histograms=histograms,
-    )
-
-
-def _remap_partition_indices(
-    *, partition: PartitionResult, sampled_indices: list[int], labels: list[int]
-) -> PartitionResult:
-    remapped_indices = [
-        [sampled_indices[index] for index in client_indices]
-        for client_indices in partition.client_indices
-    ]
-    normalized_indices = [sorted(indices) for indices in remapped_indices]
     histograms: list[dict[str, int]] = []
     for indices in normalized_indices:
         counts: dict[str, int] = {}
@@ -537,7 +449,6 @@ def train_federated(
     local_epochs: int,
     batch_size: int,
     learning_rate: float,
-    samples_per_client: int,
     partition_type: str = "dirichlet",
     concentration: float = 1.0,
     shards_per_client: int = 2,
@@ -556,7 +467,6 @@ def train_federated(
         local_epochs=local_epochs,
         batch_size=batch_size,
         learning_rate=learning_rate,
-        samples_per_client=samples_per_client,
         allocation_budget_ratio=allocation_budget_ratio,
         allocation_base_loss_weight=allocation_base_loss_weight,
     )
@@ -582,50 +492,22 @@ def train_federated(
         download=True,
     )
     input_shape = _infer_input_shape(loaded_dataset.dataset)
-    val_features, val_labels = _build_evaluation_tensors(validation_dataset.dataset, 64)
-    val_features = val_features.to(train_device)
-    val_labels = val_labels.to(train_device)
+    validation_loader = DataLoader(validation_dataset.dataset, batch_size=64, shuffle=False)
     labels = [int(label) for label in getattr(loaded_dataset.dataset, "targets")]
     dataset_metadata = getattr(loaded_dataset, "metadata", {}) or {}
     natural_client_indices = dataset_metadata.get("natural_client_indices")
+    sampled_indices = list(range(len(labels)))
     if partition_type == "natural" and natural_client_indices is not None:
         dataset_partition, sampled_indices = _build_partition_from_natural_clients(
             labels=labels,
             natural_client_indices=[list(indices) for indices in natural_client_indices],
             num_clients=num_clients,
-            samples_per_client=samples_per_client,
             seed=seed,
         )
         partition = dataset_partition
-    elif partition_type == "natural":
-        sampled_indices = list(range(len(labels)))
-        selected_labels = [labels[index] for index in sampled_indices]
-        partition = build_partition(
-            selected_labels,
-            num_clients=num_clients,
-            concentration=concentration,
-            seed=seed,
-            partition_type=partition_type,
-            shards_per_client=shards_per_client,
-            quantity_sigma=quantity_sigma,
-        )
-        dataset_partition = _remap_partition_indices(
-            partition=partition,
-            sampled_indices=sampled_indices,
-            labels=labels,
-        )
     else:
-        max_samples = num_clients * samples_per_client
-        if len(labels) < max_samples:
-            raise ValueError(
-                "samples_per_client requires at least num_clients * samples_per_client "
-                "dataset samples"
-            )
-        sample_generator = torch.Generator().manual_seed(seed)
-        sampled_indices = torch.randperm(len(labels), generator=sample_generator).tolist()[:max_samples]
-        selected_labels = [labels[index] for index in sampled_indices]
         partition = build_partition(
-            selected_labels,
+            labels,
             num_clients=num_clients,
             concentration=concentration,
             seed=seed,
@@ -633,23 +515,13 @@ def train_federated(
             shards_per_client=shards_per_client,
             quantity_sigma=quantity_sigma,
         )
-        if partition_type in {"dirichlet", "shard"}:
-            partition = _enforce_client_sample_budget(
-                partition=partition,
-                labels=selected_labels,
-                samples_per_client=samples_per_client,
-            )
-        elif partition_type in {"quantity_skew", "combined_label_quantity"}:
+        if partition_type in {"quantity_skew", "combined_label_quantity"}:
             partition = _enforce_minimum_client_samples(
                 partition=partition,
-                labels=selected_labels,
+                labels=labels,
                 minimum_samples=2,
             )
-        dataset_partition = _remap_partition_indices(
-            partition=partition,
-            sampled_indices=sampled_indices,
-            labels=labels,
-        )
+        dataset_partition = partition
     partition_metadata = build_split_metadata(
         loaded_dataset.dataset_name,
         concentration=concentration,
@@ -787,9 +659,7 @@ def train_federated(
         mean_total_loss = sum(item["total_loss"] for item in local_loss_summaries) / len(local_loss_summaries)
 
         server.model.load_state_dict(_average_state_dicts(local_states))
-        val_accuracy = evaluate_accuracy(
-            model=server.model, features=val_features, labels=val_labels
-        )
+        val_accuracy = evaluate_accuracy(server.model, validation_loader, train_device)
         if val_accuracy > best_val_accuracy:
             best_val_accuracy = val_accuracy
             torch.save(
@@ -859,7 +729,6 @@ def train_federated(
             "local_epochs": local_epochs,
             "batch_size": batch_size,
             "learning_rate": learning_rate,
-            "samples_per_client": samples_per_client,
             "num_classes": num_classes,
             "data_source": "dataset-backed",
             "partition": {

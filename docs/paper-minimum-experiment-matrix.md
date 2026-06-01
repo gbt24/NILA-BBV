@@ -28,7 +28,6 @@ for seed in 0 1 2; do
     federated.local_epochs=5 \
     federated.batch_size=32 \
     federated.learning_rate=0.05 \
-    dataset.samples_per_client=128 \
     allocation.budget_ratio=0.7 \
     watermarking.code_length=64 \
     watermarking.wm_weight=0.2 \
@@ -51,7 +50,6 @@ for seed in 0 1 2; do
     federated.local_epochs=3 \
     federated.batch_size=32 \
     federated.learning_rate=0.03 \
-    dataset.samples_per_client=128 \
     allocation.budget_ratio=0.7 \
     watermarking.code_length=64 \
     watermarking.wm_weight=0.1 \
@@ -74,7 +72,6 @@ for seed in 0 1 2; do
     federated.local_epochs=5 \
     federated.batch_size=32 \
     federated.learning_rate=0.05 \
-    dataset.samples_per_client=128 \
     allocation.budget_ratio=0.7 \
     watermarking.code_length=64 \
     watermarking.wm_weight=0.1 \
@@ -149,7 +146,6 @@ for seed in 0 1 2; do
     federated.local_epochs=5 \
     federated.batch_size=32 \
     federated.learning_rate=0.05 \
-    dataset.samples_per_client=128 \
     watermarking.code_length=64 \
     watermarking.wm_weight=0.1 \
     output_root=outputs/runs/cifar10-ablation-off
@@ -171,7 +167,6 @@ for seed in 0 1 2; do
     federated.local_epochs=3 \
     federated.batch_size=32 \
     federated.learning_rate=0.03 \
-    dataset.samples_per_client=128 \
     watermarking.code_length=64 \
     watermarking.wm_weight=0.1 \
     output_root=outputs/runs/mnist-ablation-off
@@ -215,7 +210,6 @@ for alpha in 0.1 0.3 0.5 1.0; do
       federated.participation_rate=0.2 \
       federated.local_epochs=3 \
       federated.batch_size=32 \
-      dataset.samples_per_client=128 \
       watermarking.code_length=64 \
       watermarking.wm_weight=0.2 \
       output_root=outputs/runs/cifar10-dirichlet-a${alpha}
@@ -256,7 +250,6 @@ for alpha in 0.1 0.3 0.5 1.0; do
       federated.participation_rate=0.2 \
       federated.local_epochs=2 \
       federated.batch_size=32 \
-      dataset.samples_per_client=128 \
       watermarking.code_length=64 \
       watermarking.wm_weight=0.1 \
       output_root=outputs/runs/mnist-dirichlet-a${alpha}
@@ -297,7 +290,6 @@ for sigma in 0.5 1.0; do
       federated.participation_rate=0.2 \
       federated.local_epochs=3 \
       federated.batch_size=32 \
-      dataset.samples_per_client=128 \
       watermarking.code_length=64 \
       watermarking.wm_weight=0.2 \
       output_root=outputs/runs/cifar10-quantity-s${sigma}

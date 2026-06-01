@@ -116,7 +116,6 @@ def main(cfg: DictConfig) -> None:
                 local_epochs=int(cfg.federated.local_epochs),
                 batch_size=int(cfg.federated.batch_size),
                 learning_rate=float(cfg.federated.learning_rate),
-                samples_per_client=int(cfg.dataset.samples_per_client),
                 partition_type=str(cfg.dataset.partition_type),
                 concentration=float(cfg.dataset.concentration),
                 shards_per_client=int(cfg.dataset.shards_per_client),

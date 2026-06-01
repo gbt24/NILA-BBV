@@ -74,7 +74,6 @@ def test_train_federated_runs_on_sent140(monkeypatch, tmp_path: Path) -> None:
         local_epochs=1,
         batch_size=2,
         learning_rate=0.01,
-        samples_per_client=2,
         partition_type="natural",
     )
 
@@ -82,3 +81,4 @@ def test_train_federated_runs_on_sent140(monkeypatch, tmp_path: Path) -> None:
     payload = json.loads(result.metadata_path.read_text(encoding="utf-8"))
     assert payload["dataset_name"] == "sent140"
     assert payload["partition"]["partition_type"] == "natural"
+    assert sum(payload["partition"]["client_sample_counts"]) == 4

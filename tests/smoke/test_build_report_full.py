@@ -1,8 +1,53 @@
+import os
 from pathlib import Path
 import subprocess
 import sys
 
 from omegaconf import OmegaConf
+
+
+def _script_env(repo_root: Path) -> dict[str, str]:
+    pythonpath = str(repo_root / "src")
+    existing = os.environ.get("PYTHONPATH")
+    if existing:
+        pythonpath = f"{pythonpath}{os.pathsep}{existing}"
+    return {**os.environ, "PYTHONPATH": pythonpath}
+
+
+def _write_femnist_split(root: Path, split_name: str, payload: dict[str, object]) -> None:
+    import json
+
+    split_dir = root / "femnist" / split_name
+    split_dir.mkdir(parents=True, exist_ok=True)
+    (split_dir / "all_data_0.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _prepare_femnist_fixture(repo_root: Path) -> None:
+    raw_root = repo_root / "data" / "raw"
+    _write_femnist_split(
+        raw_root,
+        "train",
+        {
+            "users": ["writer0", "writer1", "writer2"],
+            "num_samples": [2, 2, 2],
+            "user_data": {
+                "writer0": {"x": [[0.0] * 784, [1.0] * 784], "y": [0, 1]},
+                "writer1": {"x": [[0.25] * 784, [0.5] * 784], "y": [1, 2]},
+                "writer2": {"x": [[0.75] * 784, [0.9] * 784], "y": [2, 3]},
+            },
+        },
+    )
+    _write_femnist_split(
+        raw_root,
+        "test",
+        {
+            "users": ["writer3"],
+            "num_samples": [2],
+            "user_data": {
+                "writer3": {"x": [[0.1] * 784, [0.6] * 784], "y": [4, 5]},
+            },
+        },
+    )
 
 
 def test_main_config_supports_three_seed_experiment_matrix() -> None:
@@ -60,6 +105,7 @@ def test_task10_config_surface_and_report_bundle_path(tmp_path: Path) -> None:
             check=False,
             capture_output=True,
             text=True,
+            env=_script_env(repo_root),
         )
         assert completed.returncode == 0, completed.stderr
 
@@ -76,6 +122,7 @@ def test_task10_config_surface_and_report_bundle_path(tmp_path: Path) -> None:
             check=False,
             capture_output=True,
             text=True,
+            env=_script_env(repo_root),
         )
         assert completed.returncode == 0, completed.stderr
 
@@ -83,22 +130,26 @@ def test_task10_config_surface_and_report_bundle_path(tmp_path: Path) -> None:
 def test_task10_attack_default_checkpoint_resolves_latest_run(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     attacks_root = tmp_path / "attacks"
+    _prepare_femnist_fixture(repo_root)
 
     train_completed = subprocess.run(
         [
             sys.executable,
             "scripts/train/run_watermark_baseline.py",
+            "dataset=femnist",
             "seed=0",
             "owner.id=owner0",
             "watermarking.code_length=8",
             "federated.rounds=1",
             "federated.num_clients=3",
-            "dataset.samples_per_client=12",
+            "federated.participation_rate=1.0",
+            "federated.batch_size=2",
         ],
         cwd=repo_root,
         check=False,
         capture_output=True,
         text=True,
+        env=_script_env(repo_root),
     )
     assert train_completed.returncode == 0, train_completed.stderr
 
@@ -114,6 +165,7 @@ def test_task10_attack_default_checkpoint_resolves_latest_run(tmp_path: Path) ->
         check=False,
         capture_output=True,
         text=True,
+        env=_script_env(repo_root),
     )
     assert attack_completed.returncode == 0, attack_completed.stderr
     assert any(path.is_dir() for path in attacks_root.iterdir())
@@ -148,6 +200,7 @@ def test_task10_attack_default_checkpoint_resolves_latest_run(tmp_path: Path) ->
         check=False,
         capture_output=True,
         text=True,
+        env=_script_env(repo_root),
     )
     assert completed.returncode == 0, completed.stderr
     assert (bundle_dir / "figures" / "cifar100-main-tradeoff-figure.svg").exists()

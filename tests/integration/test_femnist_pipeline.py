@@ -55,7 +55,6 @@ def test_train_federated_runs_on_femnist_natural_split(monkeypatch, tmp_path: Pa
         local_epochs=1,
         batch_size=2,
         learning_rate=0.01,
-        samples_per_client=2,
         partition_type="natural",
     )
 
@@ -63,3 +62,4 @@ def test_train_federated_runs_on_femnist_natural_split(monkeypatch, tmp_path: Pa
     assert payload["dataset_name"] == "femnist"
     assert payload["partition"]["partition_type"] == "natural"
     assert payload["partition"]["client_sample_counts"] == [2, 2]
+    assert payload["partition"]["selected_samples"] == 4

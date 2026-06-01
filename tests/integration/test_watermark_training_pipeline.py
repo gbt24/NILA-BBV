@@ -72,7 +72,6 @@ def test_train_federated_records_watermark_metrics_and_owner_artifacts(
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=8,
         watermark_hook=WatermarkHook(
             owner_id="owner0",
             code_length=8,
@@ -131,7 +130,6 @@ def test_train_federated_allocation_can_disable_watermark_loss(
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=8,
         allocation_enabled=True,
         allocation_budget_ratio=0.0,
         watermark_hook=WatermarkHook(
@@ -198,7 +196,6 @@ def test_train_federated_allocation_applies_client_specific_watermark_hooks(
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=8,
         allocation_enabled=True,
         allocation_budget_ratio=0.5,
         allocation_base_loss_weight=0.3,

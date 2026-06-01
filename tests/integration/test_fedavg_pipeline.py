@@ -18,7 +18,6 @@ def test_train_federated_writes_metrics_checkpoint_and_metadata(tmp_path: Path) 
         local_epochs=1,
         batch_size=8,
         learning_rate=0.05,
-        samples_per_client=16,
     )
 
     assert result.run_dir.exists()
