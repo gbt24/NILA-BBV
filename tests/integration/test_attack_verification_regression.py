@@ -10,30 +10,37 @@ from bbv.verification import run_verification_from_checkpoint
 from bbv.watermarking import build_negative_queries, build_positive_queries, generate_codebook, save_owner_artifacts
 
 
+class _FakeDataset:
+    def __init__(self, size: int) -> None:
+        self.classes = [str(index) for index in range(10)]
+        self.targets = [index % 10 for index in range(size)]
+
+    def __len__(self) -> int:
+        return len(self.targets)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        return torch.zeros(3, 32, 32), int(self.targets[index])
+
+
+def _fake_load(*, name: str, root: Path, train: bool, download: bool, train_size: int = 40, test_size: int = 16):
+    size = train_size if train else test_size
+    return SimpleNamespace(
+        dataset_name=name,
+        split_name="train" if train else "test",
+        train=train,
+        num_classes=10,
+        num_samples=size,
+        dataset=_FakeDataset(size),
+    )
+
+
 def _patch_fake_dataset(monkeypatch, *, train_size: int = 40, test_size: int = 16) -> None:
-    class FakeDataset:
-        def __init__(self, size: int) -> None:
-            self.classes = [str(index) for index in range(10)]
-            self.targets = [index % 10 for index in range(size)]
-
-        def __len__(self) -> int:
-            return len(self.targets)
-
-        def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
-            return torch.zeros(3, 32, 32), int(self.targets[index])
-
-    def fake_load_dataset(*, name: str, root: Path, train: bool, download: bool):
-        size = train_size if train else test_size
-        return SimpleNamespace(
-            dataset_name=name,
-            split_name="train" if train else "test",
-            train=train,
-            num_classes=10,
-            num_samples=size,
-            dataset=FakeDataset(size),
-        )
-
-    monkeypatch.setattr("bbv.federated.fedavg.load_dataset", fake_load_dataset, raising=False)
+    import functools
+    monkeypatch.setattr(
+        "bbv.federated.fedavg.load_dataset",
+        functools.partial(_fake_load, train_size=train_size, test_size=test_size),
+        raising=False,
+    )
 
 
 def test_attack_outputs_keep_verification_chain_alive(monkeypatch, tmp_path: Path) -> None:
@@ -87,6 +94,8 @@ def test_attack_outputs_preserve_checkpoint_metadata_for_verification(
     monkeypatch, tmp_path: Path
 ) -> None:
     _patch_fake_dataset(monkeypatch)
+    import bbv.attacks.distillation as distillation_module
+    monkeypatch.setattr(distillation_module, "load_dataset", _fake_load, raising=False)
     train_result = train_federated(
         output_root=tmp_path / "runs",
         seed=0,

@@ -1,0 +1,13 @@
+owner_summary_path: null
+calibration_owner_summary_paths: []
+calibration_non_owner_summary_paths: []
+false_claim_summary_paths: []
+target_fpr: 0.05
+margin: 0.05
+output_path: outputs/runs/false_claim_protocol_summary.json
+smoke_only: false
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

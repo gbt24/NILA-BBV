@@ -399,3 +399,20 @@ Raw evidence:
 - `outputs/runs/**/verification_margin_summary.json`
 - `outputs/runs/**/calibration_artifacts.json`
 - `outputs/attacks/**/verification_after_attack.json`
+
+## 8) False-Claim Protocol Aggregation
+
+After running owner, independent-model, and false-claim verification jobs, aggregate their `verification_margin_summary.json` files into a protocol-level artifact:
+
+```bash
+uv run python scripts/eval/run_false_claim_protocol.py \
+  owner_summary_path=outputs/runs/cifar10-main-adaptive/<owner-run>/verification_margin_summary.json \
+  calibration_owner_summary_paths=[outputs/runs/cifar10-main-adaptive/<owner-run>/verification_margin_summary.json] \
+  calibration_non_owner_summary_paths=[outputs/runs/cifar10-independent-a/verification_margin_summary.json,outputs/runs/cifar10-independent-b/verification_margin_summary.json] \
+  false_claim_summary_paths=[outputs/runs/cifar10-false-claim-owner1/verification_margin_summary.json,outputs/runs/cifar10-false-claim-owner2/verification_margin_summary.json] \
+  target_fpr=0.05 \
+  margin=0.05 \
+  output_path=outputs/runs/cifar10-main-adaptive/false_claim_protocol_summary.json
+```
+
+Report these fields in paper tables: `decision`, `owner_score`, `calibrated_threshold`, `nearest_competitor_margin`, `achieved_fpr`, `false_claim_success_rate`, `ambiguity_flag`, and `auc`.

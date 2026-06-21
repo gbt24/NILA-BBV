@@ -49,4 +49,11 @@ def test_verify_owner_writes_calibration_artifact(tmp_path: Path) -> None:
     )
     assert result["owner_id"] == "owner0"
     assert "margin_value" in result
+    assert result["calibrated_threshold"] == 0.5
+    assert result["nearest_competitor_owner_id"] == "owner2"
+    assert result["nearest_competitor_score"] == 0.4
+    assert abs(result["nearest_competitor_margin"] - (result["owner_score"] - 0.4)) < 1e-8
+    assert result["false_claim_risk"] == 0.0
+    assert result["rejection_reason"] is None
+    assert result["calibration_sample_count"] == 3
     assert calibration_path.exists()

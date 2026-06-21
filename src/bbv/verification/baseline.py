@@ -128,6 +128,9 @@ def verify_owner(
     hard_label_only: bool = True,
     queried_positive_count: int = 0,
     queried_negative_count: int = 0,
+    calibration_owner_scores: list[float] | None = None,
+    calibration_non_owner_scores: list[float] | None = None,
+    false_claim_risk: float = 0.0,
 ) -> dict[str, object]:
     owner_score = compute_owner_score(
         expected_codebook=expected_codebook,
@@ -135,12 +138,36 @@ def verify_owner(
         negative_asr=negative_asr,
         negative_weight=negative_weight,
     )
-    strongest_competitor = max(competitor_scores.values()) if competitor_scores else 0.0
+    nearest_competitor_owner_id: str | None = None
+    nearest_competitor_score: float | None = None
+    if competitor_scores:
+        nearest_competitor_owner_id, nearest_competitor_score = max(
+            ((str(owner), float(score)) for owner, score in competitor_scores.items()),
+            key=lambda item: item[1],
+        )
+    strongest_competitor = nearest_competitor_score if nearest_competitor_score is not None else 0.0
     margin_value = owner_score - strongest_competitor
     accepted = owner_score >= threshold and margin_value >= margin
     ambiguity_flag = any(
         score >= threshold or (owner_score >= threshold and score >= owner_score - margin)
         for score in competitor_scores.values()
+    )
+    rejection_reason: str | None = None
+    if owner_score < threshold:
+        rejection_reason = "below_calibrated_threshold"
+    elif any(score >= threshold for score in competitor_scores.values()):
+        rejection_reason = "competitor_passed_threshold"
+    elif margin_value < margin:
+        rejection_reason = "competitor_within_margin"
+    owner_calibration_scores = (
+        [float(score) for score in calibration_owner_scores]
+        if calibration_owner_scores is not None
+        else [owner_score]
+    )
+    non_owner_calibration_scores = (
+        [float(score) for score in calibration_non_owner_scores]
+        if calibration_non_owner_scores is not None
+        else (list(competitor_scores.values()) if competitor_scores else [0.0])
     )
     summary: dict[str, object] = {
         "owner_id": owner_id,
@@ -150,9 +177,16 @@ def verify_owner(
         "competitor_scores": competitor_scores,
         "margin": margin,
         "margin_value": margin_value,
+        "calibrated_threshold": threshold,
+        "nearest_competitor_owner_id": nearest_competitor_owner_id,
+        "nearest_competitor_score": nearest_competitor_score,
+        "nearest_competitor_margin": margin_value,
         "decision": accepted,
         "ambiguity_flag": ambiguity_flag,
         "threshold": threshold,
+        "false_claim_risk": float(false_claim_risk),
+        "rejection_reason": rejection_reason,
+        "calibration_sample_count": len(owner_calibration_scores) + len(non_owner_calibration_scores),
         "recovered_codebook": recovered_codebook,
         "query_budget": query_budget,
         "hard_label_only": hard_label_only,
@@ -163,8 +197,8 @@ def verify_owner(
     }
 
     calibration = calibrate_threshold(
-        owner_scores=[owner_score],
-        non_owner_scores=list(competitor_scores.values()) if competitor_scores else [0.0],
+        owner_scores=owner_calibration_scores,
+        non_owner_scores=non_owner_calibration_scores,
         target_fpr=0.05,
     )
     write_json(verification_path, summary)
