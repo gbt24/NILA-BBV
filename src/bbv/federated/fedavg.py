@@ -589,6 +589,7 @@ def train_federated(
                     adaptability_scores=adaptability_scores,
                     budget_clients=allocation_budget_clients,
                     base_loss_weight=allocation_base_loss_weight,
+                    code_length=len(watermark_hook.codebook) if watermark_hook is not None else None,
                 )
             else:
                 assignment_local_ids = {
@@ -637,11 +638,14 @@ def train_federated(
         for client in client_iterator:
             client_watermark_hook = watermark_hook
             if watermark_hook is not None and allocation_enabled:
-                assignment = assignment_for_round.get(client.client_id, {"enabled": False, "loss_weight": 0.0})
+                assignment = assignment_for_round.get(client.client_id, {"enabled": False, "loss_weight": 0.0, "depth": 0})
                 if not bool(assignment["enabled"]):
                     client_watermark_hook = None
                 else:
                     client_watermark_hook = watermark_hook.with_weight(float(assignment["loss_weight"]))
+                    wm_depth = int(assignment.get("depth", 1))
+                    if wm_depth > 0 and wm_depth < len(watermark_hook.codebook):
+                        client_watermark_hook = client_watermark_hook.with_depth(wm_depth)
             state_dict, loss_value = _train_one_client(
                 global_model=server.model,
                 client=client,

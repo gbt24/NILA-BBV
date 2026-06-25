@@ -26,3 +26,19 @@ def test_allocate_watermark_budget_conserves_budget_count() -> None:
     assert len(enabled) == 2
     assert set(enabled) == {1, 2}
     assert all(0.0 <= item["loss_weight"] for item in assignments.values())
+
+
+def test_allocate_watermark_budget_sets_variable_depth() -> None:
+    scores = {0: 0.1, 1: 0.6, 2: 0.92, 3: 0.35}
+    assignments = allocate_watermark_budget(
+        adaptability_scores=scores,
+        budget_clients=3,
+        base_loss_weight=0.2,
+        code_length=64,
+    )
+
+    depths = {client_id: item["depth"] for client_id, item in assignments.items()}
+    assert depths[2] > depths[0]
+    assert depths[2] >= 1
+    assert depths[0] == 0 or depths[2] > depths[0]
+    assert all(0 <= item["depth"] <= 64 for item in assignments.values())

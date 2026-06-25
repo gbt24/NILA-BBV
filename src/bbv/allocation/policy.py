@@ -48,6 +48,7 @@ def allocate_watermark_budget(
     adaptability_scores: dict[int, float],
     budget_clients: int,
     base_loss_weight: float,
+    code_length: int | None = None,
 ) -> dict[int, dict[str, float | int | bool]]:
     if budget_clients <= 0:
         raise ValueError("budget_clients must be greater than 0")
@@ -59,12 +60,13 @@ def allocate_watermark_budget(
     )
     selected = set(ranked_client_ids[: min(budget_clients, len(ranked_client_ids))])
     assignments: dict[int, dict[str, float | int | bool]] = {}
+    max_depth = code_length if code_length is not None else 1
     for client_id, score in adaptability_scores.items():
         enabled = client_id in selected
         assignments[client_id] = {
             "enabled": enabled,
             "loss_weight": float(base_loss_weight * score) if enabled else 0.0,
-            "depth": int(1 if enabled else 0),
+            "depth": int(max(1, round(score * max_depth))) if enabled else 0,
             "score": float(score),
         }
     return assignments

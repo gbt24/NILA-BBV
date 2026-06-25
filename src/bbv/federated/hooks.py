@@ -61,5 +61,21 @@ class WatermarkHook:
         object.__setattr__(updated, "negative_queries", self.negative_queries)
         return updated
 
+    def with_depth(self, depth: int) -> "WatermarkHook":
+        code_length = len(self.codebook)
+        effective_depth = min(max(depth, 1), code_length)
+        truncated_positive = self.positive_queries[:effective_depth]
+        truncated_codebook = self.codebook[:effective_depth]
+        updated = WatermarkHook(
+            owner_id=self.owner_id,
+            code_length=effective_depth,
+            wm_weight=self.wm_weight,
+            seed=0,
+        )
+        object.__setattr__(updated, "codebook", truncated_codebook)
+        object.__setattr__(updated, "positive_queries", truncated_positive)
+        object.__setattr__(updated, "negative_queries", self.negative_queries)
+        return updated
+
     def build_query_batch(self, feature_shape: torch.Size) -> torch.Tensor:
         return torch.stack(adapt_queries_to_shape(self.positive_queries, feature_shape))

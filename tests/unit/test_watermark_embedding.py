@@ -24,6 +24,20 @@ def test_watermark_loss_combines_task_and_query_batches() -> None:
     assert loss.item() > 0.0
 
 
+def test_watermark_hook_with_depth_truncates_queries() -> None:
+    hook = WatermarkHook(owner_id="owner0", code_length=8, wm_weight=0.2, seed=0)
+    shallow = hook.with_depth(3)
+
+    assert len(shallow.codebook) == 3
+    assert len(shallow.positive_queries) == 3
+    assert len(shallow.negative_queries) == 8
+    assert shallow.wm_weight == 0.2
+    assert all(shallow.codebook[i] == hook.codebook[i] for i in range(3))
+
+    noop = hook.with_depth(100)
+    assert len(noop.codebook) == 8
+
+
 def test_watermark_hook_materializes_codebook_and_queries() -> None:
     hook = WatermarkHook(owner_id="owner0", code_length=8, wm_weight=0.2, seed=0)
 
